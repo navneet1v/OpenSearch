@@ -248,6 +248,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             for (int index = 0; index < shardsIts.size(); index++) {
                 final SearchShardIterator shardRoutings = shardsIts.get(index);
                 assert shardRoutings.skip() == false;
+                // Check back again if this async or not.
                 performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
             }
         }
@@ -271,6 +272,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (shard == null) {
             fork(() -> onShardFailure(shardIndex, null, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
         } else {
+            // check on this if this is async or not.
             final PendingExecutions pendingExecutions = throttleConcurrentRequests
                 ? pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
                 : null;
@@ -414,7 +416,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void executePhase(SearchPhase phase) {
         try {
-            phase.run();
+            phase.run();// QueryPhase, FetchPhase, ExpandSearchPhase
         } catch (Exception e) {
             if (logger.isDebugEnabled()) {
                 logger.debug(new ParameterizedMessage("Failed to execute [{}] while moving to [{}] phase", request, phase.getName()), e);

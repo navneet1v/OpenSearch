@@ -658,6 +658,8 @@ final class DocumentParser {
                     + "]"
             );
         }
+        // This is the place where we get the mapper
+
         Mapper mapper = getMapper(context, parentMapper, currentFieldName, paths);
         if (mapper != null) {
             parseObjectOrField(context, mapper);

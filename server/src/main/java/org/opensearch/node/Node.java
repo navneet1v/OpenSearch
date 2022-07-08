@@ -894,6 +894,7 @@ public class Node implements Closeable {
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
 
+            // This is when the handlers will be registered when creating the beans
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
                 b.bind(NodeService.class).toInstance(nodeService);
@@ -970,6 +971,7 @@ public class Node implements Closeable {
                 b.bind(FsHealthService.class).toInstance(fsHealthService);
                 b.bind(SystemIndices.class).toInstance(systemIndices);
             });
+
             injector = modules.createInjector();
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.

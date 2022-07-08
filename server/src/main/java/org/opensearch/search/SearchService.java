@@ -451,6 +451,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
+    // Every Search Query after going through shards and coming from the node hits this function.
     public void executeQueryPhase(
         ShardSearchRequest request,
         boolean keepStatesInContext,
@@ -511,7 +512,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         ) {
             final long afterQueryTime;
             try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context)) {
+
                 loadOrExecuteQueryPhase(request, context);
+
                 if (context.queryResult().hasSearchContext() == false && readerContext.singleSession()) {
                     freeReaderContext(readerContext.id());
                 }
@@ -534,7 +537,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     ? (Exception) e.getCause()
                     : new OpenSearchException(e.getCause());
             }
-            logger.trace("Query phase failed", e);
+            logger.error("Query phase failed", e);
             processFailure(readerContext, e);
             throw e;
         }

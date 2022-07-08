@@ -181,6 +181,7 @@ public class AggregatorFactories {
                             }
 
                             try {
+                                // here we found what aggregation builder we will get
                                 aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName, aggregationName);
                             } catch (NamedObjectNotFoundException ex) {
                                 String message = String.format(

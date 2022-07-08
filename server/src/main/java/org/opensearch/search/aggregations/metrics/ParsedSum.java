@@ -32,6 +32,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
@@ -45,6 +47,8 @@ import java.io.IOException;
  */
 public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implements Sum {
 
+    private static Logger logger = LogManager.getLogger(ParsedSum.class);
+
     @Override
     public double getValue() {
         return value();
@@ -57,6 +61,7 @@ public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implem
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        logger.error("In the parsed SUM doXContentBody {}", params);
         builder.field(CommonFields.VALUE.getPreferredName(), value);
         if (valueAsString != null) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), valueAsString);
@@ -71,6 +76,7 @@ public class ParsedSum extends ParsedSingleValueNumericMetricsAggregation implem
     }
 
     public static ParsedSum fromXContent(XContentParser parser, final String name) {
+        logger.error("In the parsed SUM fromXContent {}, {}", parser, name);
         ParsedSum sum = PARSER.apply(parser, null);
         sum.setName(name);
         return sum;

@@ -182,40 +182,7 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformati
 import org.opensearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.ScriptHeuristic;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.InternalAvg;
-import org.opensearch.search.aggregations.metrics.InternalCardinality;
-import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
-import org.opensearch.search.aggregations.metrics.InternalGeoBounds;
-import org.opensearch.search.aggregations.metrics.InternalGeoCentroid;
-import org.opensearch.search.aggregations.metrics.InternalHDRPercentileRanks;
-import org.opensearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.opensearch.search.aggregations.metrics.InternalMax;
-import org.opensearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
-import org.opensearch.search.aggregations.metrics.InternalMin;
-import org.opensearch.search.aggregations.metrics.InternalScriptedMetric;
-import org.opensearch.search.aggregations.metrics.InternalStats;
-import org.opensearch.search.aggregations.metrics.InternalSum;
-import org.opensearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
-import org.opensearch.search.aggregations.metrics.InternalTDigestPercentiles;
-import org.opensearch.search.aggregations.metrics.InternalTopHits;
-import org.opensearch.search.aggregations.metrics.InternalValueCount;
-import org.opensearch.search.aggregations.metrics.InternalWeightedAvg;
-import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.PercentilesAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.StatsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.*;
 import org.opensearch.search.aggregations.pipeline.AvgBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.AvgBucketPipelineAggregator;
 import org.opensearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -415,12 +382,14 @@ public class SearchModule {
             ).addResultReader(InternalWeightedAvg::new).setAggregatorRegistrar(WeightedAvgAggregationBuilder::registerUsage),
             builder
         );
+        // Registering the sum aggregations
         registerAggregation(
             new AggregationSpec(SumAggregationBuilder.NAME, SumAggregationBuilder::new, SumAggregationBuilder.PARSER).addResultReader(
                 InternalSum::new
             ).setAggregatorRegistrar(SumAggregationBuilder::registerAggregators),
             builder
         );
+
         registerAggregation(
             new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder.PARSER).addResultReader(
                 InternalMin::new
@@ -670,6 +639,7 @@ public class SearchModule {
                 .setAggregatorRegistrar(GeoBoundsAggregationBuilder::registerAggregators),
             builder
         );
+
         registerAggregation(
             new AggregationSpec(
                 GeoCentroidAggregationBuilder.NAME,
@@ -678,6 +648,7 @@ public class SearchModule {
             ).addResultReader(InternalGeoCentroid::new).setAggregatorRegistrar(GeoCentroidAggregationBuilder::registerAggregators),
             builder
         );
+
         registerAggregation(
             new AggregationSpec(
                 ScriptedMetricAggregationBuilder.NAME,

@@ -164,7 +164,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
             long finalSize = reducePhase.aggregations.getSerializedSize() - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
-            logger.trace("aggs final reduction [{}] max [{}]", pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
+            logger.info("aggs final reduction [{}] max [{}]", pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
         }
         progressListener.notifyFinalReduce(
             SearchProgressListener.buildSearchShards(results.asList()),

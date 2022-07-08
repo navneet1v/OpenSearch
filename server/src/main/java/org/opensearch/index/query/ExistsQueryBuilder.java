@@ -175,12 +175,12 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
 
         if (fields.size() == 1) {
             String field = fields.iterator().next();
-            return newFieldExistsQuery(context, field);
+            return newDocValuesFieldExistsQuery(context, field);
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();
         for (String field : fields) {
-            boolFilterBuilder.add(newFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
+            boolFilterBuilder.add(newDocValuesFieldExistsQuery(context, field), BooleanClause.Occur.SHOULD);
         }
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
@@ -191,13 +191,13 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new TermQuery(new Term(FieldNamesFieldMapper.NAME, fieldName));
     }
 
-    private static Query newFieldExistsQuery(QueryShardContext context, String field) {
+    private static Query newDocValuesFieldExistsQuery(QueryShardContext context, String field) {
         MappedFieldType fieldType = context.getMapperService().fieldType(field);
         if (fieldType == null) {
             // The field does not exist as a leaf but could be an object so
             // check for an object mapper
             if (context.getObjectMapper(field) != null) {
-                return newObjectFieldExistsQuery(context, field);
+                return newObjectDocValuesFieldExistsQuery(context, field);
             }
             return Queries.newMatchNoDocsQuery("User requested \"match_none\" query.");
         }
@@ -205,7 +205,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new ConstantScoreQuery(filter);
     }
 
-    private static Query newObjectFieldExistsQuery(QueryShardContext context, String objField) {
+    private static Query newObjectDocValuesFieldExistsQuery(QueryShardContext context, String objField) {
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {

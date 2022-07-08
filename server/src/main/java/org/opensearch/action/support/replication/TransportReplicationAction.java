@@ -1016,6 +1016,7 @@ public abstract class TransportReplicationAction<
             final boolean isPrimaryAction,
             final TransportRequest requestToPerform
         ) {
+            logger.info("*****Sending Transportation request for Indexing the data. {}*****", action);
             transportService.sendRequest(node, action, requestToPerform, transportOptions, new TransportResponseHandler<Response>() {
 
                 @Override

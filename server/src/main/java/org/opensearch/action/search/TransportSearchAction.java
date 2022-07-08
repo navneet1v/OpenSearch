@@ -912,6 +912,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             concreteLocalIndices,
             localShardIterators.size() + remoteShardIterators.size()
         );
+        // This works on the shardIterators
+        // actual object is of class SearchQueryThenFetchAsyncAction.class
         searchAsyncActionProvider.asyncSearchAction(
             task,
             searchRequest,

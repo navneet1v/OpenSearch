@@ -86,7 +86,7 @@ final class GeoCentroidAggregator extends MetricsAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final BigArrays bigArrays = context.bigArrays();
-        final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);
+        final MultiGeoPointValues values = valuesSource.geoPointValues(ctx);// we get the doc values data here from the ctx
         final CompensatedSum compensatedSumLat = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumLon = new CompensatedSum(0, 0);
 

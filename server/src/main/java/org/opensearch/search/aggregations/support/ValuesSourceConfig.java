@@ -210,6 +210,7 @@ public class ValuesSourceConfig {
         ValueType userValueTypeHint,
         ValuesSourceType defaultValuesSourceType
     ) {
+        // This is place from where we are getting source configs
         return fieldContext.indexFieldData().getValuesSourceType();
     }
 

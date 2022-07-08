@@ -141,16 +141,19 @@ public class QueryPhase {
             return;
         }
 
-        if (LOGGER.isTraceEnabled()) {
-            LOGGER.trace("{}", new SearchContextSourcePrinter(searchContext));
-        }
+        // if (LOGGER.isTraceEnabled()) {
+        LOGGER.info("{}", new SearchContextSourcePrinter(searchContext));
+        // }
 
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
         // request, preProcess is called on the DFS phase phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
+        LOGGER.info("Before Preprocess");
         aggregationPhase.preProcess(searchContext);
+        LOGGER.info("After Preprocess and before execute internal");
         boolean rescore = executeInternal(searchContext, queryPhaseSearcher);
-
+        LOGGER.info("After rescore");
+        LOGGER.info("Navneet {}", new SearchContextSourcePrinter(searchContext));
         if (rescore) { // only if we do a regular search
             rescorePhase.execute(searchContext);
         }
@@ -346,6 +349,7 @@ public class QueryPhase {
         }
         QuerySearchResult queryResult = searchContext.queryResult();
         try {
+            // This is the place where the actual search is happening
             searcher.search(query, queryCollector);
         } catch (EarlyTerminatingCollector.EarlyTerminationException e) {
             queryResult.terminatedEarly(true);

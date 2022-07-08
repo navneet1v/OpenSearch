@@ -32,6 +32,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -52,6 +54,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    private static Logger logger = LogManager.getLogger(SumAggregatorFactory.class);
 
     SumAggregatorFactory(
         String name,
@@ -85,6 +89,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
+        logger.error("********* Navneet Verma2 *********** {} {} {} {}", metadata, searchContext, parent, bucketCardinality);
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(SumAggregationBuilder.REGISTRY_KEY, config)
             .build(name, config, searchContext, parent, metadata);

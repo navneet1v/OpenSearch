@@ -271,6 +271,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
+        logger.info("Dispatching REST request {}, \nhandler {}", request, handler);
         final int contentLength = request.content().length();
         if (contentLength > 0) {
             final XContentType xContentType = request.getXContentType();

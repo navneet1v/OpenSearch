@@ -169,7 +169,8 @@ configure([
   project(":test:fixtures:old-elasticsearch"),
   project(":test:fixtures:s3-fixture"),
   project(":test:framework"),
-  project(":test:logger-usage")
+  project(":test:logger-usage")//,
+  //project(":HelloWorldPlugin")
 ]) {
   project.tasks.withType(MissingJavadocTask) {
     isExcluded = true

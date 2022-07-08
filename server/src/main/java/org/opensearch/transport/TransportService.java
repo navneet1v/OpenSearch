@@ -932,6 +932,7 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     private void sendLocalRequest(long requestId, final String action, final TransportRequest request, TransportRequestOptions options) {
+        // logger.error("I am sending the transport request \n action : {} \n request: {}", action, request);
         final DirectResponseChannel channel = new DirectResponseChannel(localNode, action, requestId, this, threadPool);
         try {
             onRequestSent(localNode, requestId, action, request, options);
@@ -1439,6 +1440,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         @SuppressWarnings("unchecked")
         protected void processResponse(TransportResponseHandler handler, TransportResponse response) {
+            // logger.error("I am in handle response {} \n {}", handler, response);
             try {
                 handler.handleResponse(response);
             } catch (Exception e) {

@@ -45,7 +45,7 @@ import java.util.Collections;
 
 /**
  * LatLonPoint field data
- *
+ * This is the class that converts the DocValue field of the GeoPoint to the right internal representation
  * @opensearch.internal
  */
 final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
@@ -76,6 +76,10 @@ final class LatLonPointDVLeafFieldData extends AbstractLeafGeoPointFieldData {
     @Override
     public MultiGeoPointValues getGeoPointValues() {
         try {
+            // This place gets the doc values. We just need to know why we need to do this... SortedNumericDocValues??? For geo shape will
+            // it be sortedBinarydocvalues which
+            // comes from TYPE.setDocValuesType(DocValuesType.SORTED_NUMERIC); in the doc value class. The reader help us to read the values
+            // and convert. SingletonSortedNumericDocValues
             final SortedNumericDocValues numericValues = DocValues.getSortedNumeric(reader, fieldName);
             return new MultiGeoPointValues() {
 

@@ -86,3 +86,4 @@ ${path.logs}
 # Require explicit names when deleting indices:
 #
 #action.destructive_requires_name: true
+logger.org.opensearch.index.reindex: debug

@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -49,6 +51,7 @@ import java.util.Objects;
  */
 public class InternalSum extends InternalNumericMetricsAggregation.SingleValue implements Sum {
     private final double sum;
+    private static Logger logger = LogManager.getLogger(InternalSum.class);
 
     public InternalSum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, metadata);
@@ -67,6 +70,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        logger.error("Writing on the stream");
         out.writeNamedWriteable(format);
         out.writeDouble(sum);
     }
@@ -88,6 +92,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
 
     @Override
     public InternalSum reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        logger.error("In the reduce function");
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);

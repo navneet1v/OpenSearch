@@ -461,7 +461,9 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
+
         actions = setupActions(actionPlugins);
+
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
@@ -603,8 +605,11 @@ public class ActionModule extends AbstractModule {
         actions.register(DeleteAction.INSTANCE, TransportDeleteAction.class);
         actions.register(UpdateAction.INSTANCE, TransportUpdateAction.class);
         actions.register(MultiGetAction.INSTANCE, TransportMultiGetAction.class, TransportShardMultiGetAction.class);
+
         actions.register(BulkAction.INSTANCE, TransportBulkAction.class, TransportShardBulkAction.class);
+
         actions.register(SearchAction.INSTANCE, TransportSearchAction.class);
+
         actions.register(SearchScrollAction.INSTANCE, TransportSearchScrollAction.class);
         actions.register(MultiSearchAction.INSTANCE, TransportMultiSearchAction.class);
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);

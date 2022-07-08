@@ -31,6 +31,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
@@ -61,6 +63,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     private DoubleArray sums;
     private DoubleArray compensations;
+    private static Logger logger = LogManager.getLogger(SumAggregator.class);
 
     SumAggregator(
         String name,
@@ -86,6 +89,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+        logger.error("In the get Leaf Collector");
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -97,12 +101,13 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
             public void collect(int doc, long bucket) throws IOException {
                 sums = bigArrays.grow(sums, bucket + 1);
                 compensations = bigArrays.grow(compensations, bucket + 1);
-
+                // This function is doing all the aggregations for the sum.
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     // Compute the sum of double values with Kahan summation algorithm which is more
                     // accurate than naive summation.
                     double sum = sums.get(bucket);
+                    logger.error("Navneet Sum is : {}", sum);
                     double compensation = compensations.get(bucket);
                     kahanSummation.reset(sum, compensation);
 
@@ -113,6 +118,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
                     compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());
+                    logger.error("Sum at the end is : {}", kahanSummation.value());
                 }
             }
         };
@@ -131,6 +137,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= sums.size()) {
             return buildEmptyAggregation();
         }
+        logger.error("In the buildAggregation function {} to build internal aggregation", sums.get(bucket));
         return new InternalSum(name, sums.get(bucket), format, metadata());
     }
 
