@@ -31,20 +31,32 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.ShapeDocValuesField;
+import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.geometry.Geometry;
+import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.index.fielddata.plain.AbstractGeoShapeIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.VectorGeoShapeQueryProcessor;
+import org.opensearch.search.aggregations.support.CoreValuesSourceType;
+import org.opensearch.search.lookup.SearchLookup;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -77,6 +89,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         FIELD_TYPE.setOmitNorms(true);
         FIELD_TYPE.freeze();
     }
+    private static final Logger LOGGER = LogManager.getLogger(GeoShapeFieldMapper.class);
 
     /**
      * Concrete builder for geo_shape types
@@ -87,7 +100,8 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
         public Builder(String name) {
             super(name, FIELD_TYPE);
-            this.hasDocValues = false;
+            this.hasDocValues = true;
+            builder = this;
         }
 
         private GeoShapeFieldType buildFieldType(BuilderContext context) {
@@ -138,6 +152,12 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
             return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
         }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues();
+            return new AbstractGeoShapeIndexFieldData.Builder(name(), CoreValuesSourceType.GEO_SHAPE);
+        }
     }
 
     /**
@@ -181,8 +201,20 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
     @Override
     @SuppressWarnings("rawtypes")
-    protected void addDocValuesFields(String name, Geometry geometry, List fields, ParseContext context) {
-        // we will throw a mapping exception before we get here
+    protected void addDocValuesFields(final String name, final Geometry geometry, final List fields, final ParseContext context) {
+        final List<IndexableField> indexableFields = (List<IndexableField>) fields;
+        final List<ShapeField.DecodedTriangle> decodedTriangles = new ArrayList<>();
+        for (IndexableField field : indexableFields) {
+            final BytesRef bytesRef = field.binaryValue();
+            // The indexableField for Geometry types are stored as {@code ShapeField.Triangle} with 7 dimensions.
+            assert bytesRef.length == 7 * Integer.BYTES;
+            byte[] tempBuffer = new byte[bytesRef.length];
+            System.arraycopy(bytesRef.bytes, bytesRef.offset, tempBuffer, 0, 7 * Integer.BYTES);
+            final ShapeField.DecodedTriangle triangle = new ShapeField.DecodedTriangle();
+            ShapeField.decodeTriangle(tempBuffer, triangle);
+            decodedTriangles.add(triangle);
+        }
+        context.doc().add(new ShapeDocValuesField(name, decodedTriangles));
     }
 
     @Override
@@ -218,10 +250,5 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return false;
     }
 }

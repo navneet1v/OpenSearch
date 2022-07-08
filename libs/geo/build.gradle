@@ -30,11 +30,36 @@
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
+apply plugin: 'nebula.optional-base'
 
 dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-geo'
   }
+  // lucene
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  api "org.apache.lucene:lucene-grouping:${versions.lucene}"
+  api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
+  api "org.apache.lucene:lucene-join:${versions.lucene}"
+  api "org.apache.lucene:lucene-memory:${versions.lucene}"
+  api "org.apache.lucene:lucene-misc:${versions.lucene}"
+  api "org.apache.lucene:lucene-queries:${versions.lucene}"
+  api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
+  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
+  api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  api "org.apache.lucene:lucene-suggest:${versions.lucene}"
+
+  // lucene spatial
+  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
+  api "org.locationtech.jts:jts-core:${versions.jts}", optional
+
+  // logging
+  api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+
 }
 
 tasks.named('forbiddenApisMain').configure {

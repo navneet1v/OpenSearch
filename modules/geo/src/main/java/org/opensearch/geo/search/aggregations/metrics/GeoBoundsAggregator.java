@@ -6,43 +6,13 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+package org.opensearch.geo.search.aggregations.metrics;
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
-package org.opensearch.search.aggregations.metrics;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.DoubleArray;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
 import org.opensearch.search.aggregations.Aggregator;
-import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -57,22 +27,9 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-@Deprecated
-final class GeoBoundsAggregator extends MetricsAggregator {
+public class GeoBoundsAggregator extends AbstractGeoBoundsAggregator<ValuesSource.GeoPoint> {
 
-    static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
-    private static final Logger logger = LogManager.getLogger(GeoBoundsAggregator.class);
-
-    private final ValuesSource.GeoPoint valuesSource;
-    private final boolean wrapLongitude;
-    DoubleArray tops;
-    DoubleArray bottoms;
-    DoubleArray posLefts;
-    DoubleArray posRights;
-    DoubleArray negLefts;
-    DoubleArray negRights;
-
-    GeoBoundsAggregator(
+    public GeoBoundsAggregator(
         String name,
         SearchContext aggregationContext,
         Aggregator parent,
@@ -80,25 +37,7 @@ final class GeoBoundsAggregator extends MetricsAggregator {
         boolean wrapLongitude,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, aggregationContext, parent, metadata);
-        // TODO: stop expecting nulls here
-        this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.GeoPoint) valuesSourceConfig.getValuesSource() : null;
-        this.wrapLongitude = wrapLongitude;
-        if (valuesSource != null) {
-            final BigArrays bigArrays = context.bigArrays();
-            tops = bigArrays.newDoubleArray(1, false);
-            tops.fill(0, tops.size(), Double.NEGATIVE_INFINITY);
-            bottoms = bigArrays.newDoubleArray(1, false);
-            bottoms.fill(0, bottoms.size(), Double.POSITIVE_INFINITY);
-            posLefts = bigArrays.newDoubleArray(1, false);
-            posLefts.fill(0, posLefts.size(), Double.POSITIVE_INFINITY);
-            posRights = bigArrays.newDoubleArray(1, false);
-            posRights.fill(0, posRights.size(), Double.NEGATIVE_INFINITY);
-            negLefts = bigArrays.newDoubleArray(1, false);
-            negLefts.fill(0, negLefts.size(), Double.POSITIVE_INFINITY);
-            negRights = bigArrays.newDoubleArray(1, false);
-            negRights.fill(0, negRights.size(), Double.NEGATIVE_INFINITY);
-        }
+        super(name, aggregationContext, parent, valuesSourceConfig, wrapLongitude, metadata);
     }
 
     @Override
@@ -129,7 +68,6 @@ final class GeoBoundsAggregator extends MetricsAggregator {
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-                    logger.error("****** Navneet Values Count is : {}", valuesCount);
                     for (int i = 0; i < valuesCount; ++i) {
                         GeoPoint value = values.nextValue();
                         double top = tops.get(bucket);
@@ -166,39 +104,5 @@ final class GeoBoundsAggregator extends MetricsAggregator {
                 }
             }
         };
-    }
-
-    @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return buildEmptyAggregation();
-        }
-        double top = tops.get(owningBucketOrdinal);
-        double bottom = bottoms.get(owningBucketOrdinal);
-        double posLeft = posLefts.get(owningBucketOrdinal);
-        double posRight = posRights.get(owningBucketOrdinal);
-        double negLeft = negLefts.get(owningBucketOrdinal);
-        double negRight = negRights.get(owningBucketOrdinal);
-        return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metadata());
-    }
-
-    @Override
-    public InternalAggregation buildEmptyAggregation() {
-        return new InternalGeoBounds(
-            name,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY,
-            Double.POSITIVE_INFINITY,
-            Double.NEGATIVE_INFINITY,
-            wrapLongitude,
-            metadata()
-        );
-    }
-
-    @Override
-    public void doClose() {
-        Releasables.close(tops, bottoms, posLefts, posRights, negLefts, negRights);
     }
 }

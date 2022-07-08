@@ -6,32 +6,9 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+package org.opensearch.geo.search.aggregations.metrics;
 
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
-package org.opensearch.search.aggregations.metrics;
-
+import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ObjectParser;
@@ -40,11 +17,8 @@ import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
-import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.opensearch.search.aggregations.support.ValuesSourceConfig;
-import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
-import org.opensearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.aggregations.metrics.GeoBoundsAggregatorSupplier;
+import org.opensearch.search.aggregations.support.*;
 
 import java.io.IOException;
 import java.util.Map;
@@ -55,9 +29,9 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-@Deprecated
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<GeoBoundsAggregationBuilder> {
-    public static final String NAME = "geo_bounds";
+    public static final String NAME = "geo_boundsV2";
+    private static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
     public static final ValuesSourceRegistry.RegistryKey<GeoBoundsAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
         GeoBoundsAggregatorSupplier.class
@@ -69,7 +43,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     );
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, false, false);
-        PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
+        PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, WRAP_LONGITUDE_FIELD);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -122,13 +96,6 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         return this;
     }
 
-    /**
-     * Get whether to wrap longitudes.
-     */
-    public boolean wrapLongitude() {
-        return wrapLongitude;
-    }
-
     @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.NONE;
@@ -146,7 +113,7 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD.getPreferredName(), wrapLongitude);
+        builder.field(WRAP_LONGITUDE_FIELD.getPreferredName(), wrapLongitude);
         return builder;
     }
 

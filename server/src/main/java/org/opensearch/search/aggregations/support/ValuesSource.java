@@ -45,18 +45,8 @@ import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.Prepared;
 import org.opensearch.common.lucene.ScorerAware;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
-import org.opensearch.index.fielddata.DocValueBits;
-import org.opensearch.index.fielddata.IndexFieldData;
-import org.opensearch.index.fielddata.IndexGeoPointFieldData;
-import org.opensearch.index.fielddata.IndexNumericFieldData;
-import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
-import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
-import org.opensearch.index.fielddata.MultiGeoPointValues;
-import org.opensearch.index.fielddata.SortedBinaryDocValues;
-import org.opensearch.index.fielddata.SortedNumericDoubleValues;
-import org.opensearch.index.fielddata.SortingBinaryDocValues;
-import org.opensearch.index.fielddata.SortingNumericDoubleValues;
+import org.opensearch.index.fielddata.*;
+import org.opensearch.index.fielddata.plain.AbstractGeoShapeIndexFieldData;
 import org.opensearch.index.mapper.RangeType;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.search.aggregations.AggregationExecutionException;
@@ -691,6 +681,89 @@ public abstract class ValuesSource {
 
             public org.opensearch.index.fielddata.MultiGeoPointValues geoPointValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getGeoPointValues();
+            }
+        }
+    }
+    // put the doc values for Shape over here. This place will call right thing to get the data.
+
+    public abstract static class GeoShape extends ValuesSource {
+        public static final GeoShape EMPTY = new GeoShape() {
+            /**
+             * This provides the MultiGeoShapeValues after reading from LeafReaderContext
+             *
+             * @param context {@link LeafReaderContext}
+             * @return MultiGeoShapeValues
+             */
+            @Override
+            public MultiGeoShapeValues getGeoShapeValues(LeafReaderContext context) {
+                return org.opensearch.index.fielddata.FieldData.emptyMultiGeoShape();
+            }
+
+            /**
+             * Get the current {@link BytesValues}.
+             */
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return org.opensearch.index.fielddata.FieldData.emptySortedBinary();
+            }
+        };
+
+        /**
+         * This is getting used in the {@link org.opensearch.search.aggregations.bucket.missing.MissingAggregator}
+         * @param context {@link LeafReaderContext}
+         * @return DocValueBits
+         */
+        @Override
+        public DocValueBits docsWithValue(LeafReaderContext context) {
+            final MultiGeoShapeValues geoShapeValues = getGeoShapeValues(context);
+            return org.opensearch.index.fielddata.FieldData.docsWithValue(geoShapeValues);
+        }
+
+        @Override
+        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) {
+            throw new AggregationExecutionException("can't round a [GEO_SHAPE]");
+        }
+
+        /**
+         * This provides the MultiGeoShapeValues after reading from LeafReaderContext
+         * @param context {@link LeafReaderContext}
+         * @return MultiGeoShapeValues
+         */
+        public abstract MultiGeoShapeValues getGeoShapeValues(LeafReaderContext context);
+
+        /**
+         * Field data for geo shape values source
+         *
+         * @opensearch.internal
+         */
+        public static class FieldData extends GeoShape {
+
+            protected final AbstractGeoShapeIndexFieldData indexFieldData;
+
+            public FieldData(AbstractGeoShapeIndexFieldData indexFieldData) {
+                this.indexFieldData = indexFieldData;
+            }
+
+            /**
+             * Get the current {@link BytesValues}.
+             *
+             * @param context {@link LeafReaderContext}
+             * @return SortedBinaryDocValues
+             */
+            @Override
+            public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
+                return indexFieldData.load(context).getBytesValues();
+            }
+
+            /**
+             * This provides the MultiGeoShapeValues after reading from LeafReaderContext
+             *
+             * @param context {@link LeafReaderContext}
+             * @return MultiGeoShapeValues
+             */
+            @Override
+            public MultiGeoShapeValues getGeoShapeValues(LeafReaderContext context) {
+                return indexFieldData.load(context).getGeoShapeValues();
             }
         }
     }

@@ -161,6 +161,9 @@ allprojects {
 
     buildMetadata = buildMetadataMap
   }
+  repositories {
+    mavenLocal()
+  }
 }
 
 tasks.register("verifyVersions") {

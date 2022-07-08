@@ -42,6 +42,7 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
+import org.opensearch.index.fielddata.plain.AbstractGeoShapeIndexFieldData;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -184,6 +185,79 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return MissingValues.replaceMissing((ValuesSource.GeoPoint) valuesSource, missing);
         }
 
+        @Override
+        public DocValueFormat getFormatter(String format, ZoneId tz) {
+            return DocValueFormat.GEOHASH;
+        }
+    },
+    GEO_SHAPE() {
+        /**
+         * Called when an aggregation is operating over a known empty set (usually because the field isn't specified), this method allows for
+         * returning a no-op implementation.  All {@link ValuesSource}s should implement this method.
+         *
+         * @return - Empty specialization of the base {@link ValuesSource}
+         */
+        @Override
+        public ValuesSource getEmpty() {
+            return ValuesSource.GeoShape.EMPTY;
+        }
+
+        /**
+         * Returns the type-specific sub class for a script data source.  {@link ValuesSource}s that do not support scripts should throw
+         * {@link AggregationExecutionException}.  Note that this method is called when a script is
+         * operating without an underlying field.  Scripts operating over fields are handled by the script argument to getField below.
+         *
+         * @param script          - The script being wrapped
+         * @param scriptValueType - The expected output type of the script
+         * @return - Script specialization of the base {@link ValuesSource}
+         */
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+        }
+
+        /**
+         * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.
+         *
+         * @param fieldContext - The field being wrapped
+         * @param script       - Optional script that might be applied over the field
+         * @return - Field specialization of the base {@link ValuesSource}
+         */
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+            if (!(fieldContext.indexFieldData() instanceof AbstractGeoShapeIndexFieldData)) {
+                throw new IllegalArgumentException(
+                    "Expected geo_shape type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
+                );
+            }
+            return new ValuesSource.GeoShape.FieldData((AbstractGeoShapeIndexFieldData) fieldContext.indexFieldData());
+        }
+
+        /**
+         * Apply the given missing value to an already-constructed {@link ValuesSource}.  Types which do not support missing values should throw
+         * {@link AggregationExecutionException}
+         *
+         * @param valuesSource   - The original {@link ValuesSource}
+         * @param rawMissing     - The missing value we got from the parser, typically a string or number
+         * @param docValueFormat - The format to use for further parsing the user supplied value, e.g. a date format
+         * @param now            - Used in conjunction with the formatter, should return the current time in milliseconds
+         * @return - Wrapper over the provided {@link ValuesSource} to apply the given missing value
+         */
+        @Override
+        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+            throw new AggregationExecutionException("We are not supporting the replace missing function for the geo_shape");
+        }
+
+        /**
+         * This method provides a hook for specifying a type-specific formatter.  When {@link ValuesSourceConfig} can resolve a
+         * {@link MappedFieldType}, it prefers to get the formatter from there.  Only when a field can't be
+         * resolved (which is to say script cases and unmapped field cases), it will fall back to calling this method on whatever
+         * {@link ValuesSourceType} it was able to resolve to.
+         *
+         * @param format - User supplied format string (Optional)
+         * @param tz     - User supplied time zone (Optional)
+         * @return - A formatter object, configured with the passed in settings if appropriate.
+         */
         @Override
         public DocValueFormat getFormatter(String format, ZoneId tz) {
             return DocValueFormat.GEOHASH;

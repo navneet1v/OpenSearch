@@ -99,10 +99,17 @@ public enum FieldData {
     }
 
     /**
-     * Return a {@link SortedNumericDoubleValues} that doesn't contain any value.
+     * Return a {@link MultiGeoPointValues} that doesn't contain any value.
      */
     public static MultiGeoPointValues emptyMultiGeoPoints() {
         return singleton(emptyGeoPoint());
+    }
+
+    /**
+     * Return a {@link MultiGeoShapeValues} that doesn't contain any value.
+     */
+    public static MultiGeoShapeValues emptyMultiGeoShape() {
+        return new MultiGeoShapeValues.EmptyGeoShapeValue();
     }
 
     /**
@@ -139,6 +146,19 @@ public enum FieldData {
             @Override
             public boolean advanceExact(int doc) throws IOException {
                 return pointValues.advanceExact(doc);
+            }
+        };
+    }
+
+    /**
+     * Returns a {@link DocValueBits} representing all documents from <code>shapeValues</code> that have
+     * a value.
+     */
+    public static DocValueBits docsWithValue(final MultiGeoShapeValues shapeValues) {
+        return new DocValueBits() {
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                return shapeValues.advanceExact(doc);
             }
         };
     }
