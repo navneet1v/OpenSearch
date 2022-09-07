@@ -8,6 +8,7 @@
 
 package org.opensearch.common.geo;
 
+import org.apache.lucene.document.ShapeDocValuesField;
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.document.XYShapeDocValuesField;
 

@@ -33,6 +33,8 @@
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.CellIdSource;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.GeoShapeCellIdSource;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -51,6 +53,7 @@ import org.opensearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Aggregation Factory for geo_tile grid agg
@@ -139,6 +142,49 @@ class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
                     precision,
                     geoBoundingBox,
                     GeoTileUtils::longEncode
+                );
+                return new GeoTileGridAggregator(
+                    name,
+                    factories,
+                    cellIdSource,
+                    requiredSize,
+                    shardSize,
+                    aggregationContext,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+            true
+        );
+    }
+
+    /**
+     * Returns the consumer that can be used to register the {@link GeoTileGridAggregator} for geo_shape.
+     *
+     * @return {@link Consumer} of type {@link ValuesSourceRegistry.Builder}
+     */
+    public static Consumer<ValuesSourceRegistry.Builder> buildGeoShapeAggregator() {
+        return builder -> builder.register(
+            GeoTileGridAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.GEO_SHAPE,
+            (
+                name,
+                factories,
+                valuesSource,
+                precision,
+                geoBoundingBox,
+                requiredSize,
+                shardSize,
+                aggregationContext,
+                parent,
+                cardinality,
+                metadata) -> {
+                GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource(
+                    (ValuesSource.GeoShape) valuesSource,
+                    precision,
+                    geoBoundingBox,
+                    GeoTileUtils::encodeShape
                 );
                 return new GeoTileGridAggregator(
                     name,

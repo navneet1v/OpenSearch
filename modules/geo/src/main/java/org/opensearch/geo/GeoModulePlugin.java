@@ -34,9 +34,14 @@ package org.opensearch.geo;
 
 import org.opensearch.geo.search.aggregations.bucket.composite.GeoTileGridValuesSourceBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregatorFactory;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGrid;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregator;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregatorFactory;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.opensearch.geo.search.aggregations.metrics.GeoBounds;
 import org.opensearch.geo.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.opensearch.geo.search.aggregations.metrics.GeoBoundsGeoShapeAggregator;
@@ -50,6 +55,7 @@ import org.opensearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -115,13 +121,19 @@ public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugi
      */
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        final Consumer<ValuesSourceRegistry.Builder> geoShapeConsumer = builder -> builder.register(
+        List<Consumer<ValuesSourceRegistry.Builder>> aggregationConsumersList = new ArrayList<>();
+        final Consumer<ValuesSourceRegistry.Builder> geoShapeGeoBoundsConsumer = builder -> builder.register(
             GeoBoundsAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.GEO_SHAPE,
             GeoBoundsGeoShapeAggregator::new,
             true
         );
-        return Collections.singletonList(geoShapeConsumer);
+        aggregationConsumersList.add(geoShapeGeoBoundsConsumer);
+        final Consumer<ValuesSourceRegistry.Builder> geoShapeGeoTileGridConsumer = GeoTileGridAggregatorFactory.buildGeoShapeAggregator();
+        final Consumer<ValuesSourceRegistry.Builder> geoShapeGeoHashGridConsumer = GeoHashGridAggregatorFactory.buildGeoShapeAggregator();
+        aggregationConsumersList.add(geoShapeGeoTileGridConsumer);
+        aggregationConsumersList.add(geoShapeGeoHashGridConsumer);
+        return aggregationConsumersList;
     }
 
 }
