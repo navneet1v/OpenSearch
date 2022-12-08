@@ -199,6 +199,60 @@ public class RandomGeoGeometryGenerator {
         return new Rectangle(minX, maxX, maxY, minY);
     }
 
+    public static List<Point> getPointsOfGeometry(final Geometry geometry) {
+        final List<Point> pointsList = new ArrayList<>();
+        switch (geometry.type()) {
+            case POINT:
+                pointsList.add((Point) geometry);
+                break;
+            case MULTIPOINT:
+                pointsList.addAll(((MultiPoint) geometry).getAll());
+                break;
+            case POLYGON:
+                final Polygon polygon = (Polygon) geometry;
+                final double[] y = polygon.getPolygon().getY();
+                final double[] x = polygon.getPolygon().getX();
+                for (int i = 0; i < x.length; i++) {
+                    pointsList.add(new Point(x[i], y[i]));
+                }
+                break;
+            case LINESTRING:
+                final Line line = (Line) geometry;
+                final double[] yLine = line.getY();
+                final double[] xLine = line.getX();
+                for (int i = 0; i < xLine.length; i++) {
+                    pointsList.add(new Point(xLine[i], yLine[i]));
+                }
+                break;
+            case MULTIPOLYGON:
+                final MultiPolygon multiPolygon = (MultiPolygon) geometry;
+                for (int i = 0; i < multiPolygon.size(); i++) {
+                    pointsList.addAll(getPointsOfGeometry(multiPolygon.get(i)));
+                }
+                break;
+            case GEOMETRYCOLLECTION:
+                final GeometryCollection<Geometry> geometries = (GeometryCollection<Geometry>) geometry;
+                geometries.getAll().forEach(geo -> pointsList.addAll(getPointsOfGeometry(geo)));
+                break;
+            case MULTILINESTRING:
+                final MultiLine multiLine = (MultiLine) geometry;
+                multiLine.getAll().forEach(l -> pointsList.addAll(getPointsOfGeometry(l)));
+                break;
+            case ENVELOPE:
+                final Rectangle rectangle = (Rectangle) geometry;
+                pointsList.add(new Point(rectangle.getMaxX(), rectangle.getMaxY()));
+                pointsList.add(new Point(rectangle.getMaxX(), rectangle.getMinY()));
+                pointsList.add(new Point(rectangle.getMinX(), rectangle.getMaxY()));
+                pointsList.add(new Point(rectangle.getMinX(), rectangle.getMinY()));
+                break;
+            default:
+                Assert.fail(
+                    String.format(Locale.ROOT, "Cannot get points of a geometry of type %s, as it is not " + "supported", geometry.type())
+                );
+        }
+        return pointsList;
+    }
+
     /**
      * Returns a double array where pt[0] : longitude and pt[1] : latitude
      *

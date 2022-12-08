@@ -31,7 +31,7 @@ import java.util.List;
  */
 public class GeoShapeDocValue extends ShapeDocValue {
     private static final String FIELD_NAME = "missingField";
-    private final LatLonShapeDocValues shapeDocValues;
+    public final LatLonShapeDocValues shapeDocValues;
 
     public GeoShapeDocValue(final String fieldName, final BytesRef bytesRef) {
         this(LatLonShape.createDocValueField(fieldName, bytesRef));

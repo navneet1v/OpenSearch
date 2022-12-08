@@ -295,9 +295,10 @@ public final class GeoTileUtils {
         final long totalTilesAtPrecision = 1L << checkPrecisionRange(precision);
         int maxXTile = getXTile(boundingRectangle.getMaxX(), totalTilesAtPrecision);
         int minXTile = getXTile(boundingRectangle.getMinX(), totalTilesAtPrecision);
-
-        int maxYTile = getYTile(boundingRectangle.getMaxY(), totalTilesAtPrecision);
-        int minYTile = getYTile(boundingRectangle.getMinY(), totalTilesAtPrecision);
+        // as tuples in tiles are x,y and y(lat) increases from north to south in tiles, so for minYTile we need to
+        // take maxY and for maxYTile we need to take minY.
+        int minYTile = getYTile(boundingRectangle.getMaxY(), totalTilesAtPrecision);
+        int maxYTile = getYTile(boundingRectangle.getMinY(), totalTilesAtPrecision);
         final List<Long> encodedValues = new ArrayList<>();
         for (int x = minXTile; x <= maxXTile; x++) {
             for (int y = minYTile; y <= maxYTile; y++) {
