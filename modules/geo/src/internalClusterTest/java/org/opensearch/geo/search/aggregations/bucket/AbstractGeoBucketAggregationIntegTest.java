@@ -98,7 +98,7 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
             }
 
             i++;
-            final Set<String> values = generateBucketsForGeometry(geometry, geometryDocValue, isShapeIntersectingBB);
+            final Set<String> values = generateBucketsForGeometry(geometry, geometryDocValue);
             geoshapes.add(indexGeoShape(GEO_SHAPE_INDEX_NAME, geometry));
             for (final String hash : values) {
                 expectedDocsCountForGeoShapes.put(hash, expectedDocsCountForGeoShapes.getOrDefault(hash, 0) + 1);
@@ -112,16 +112,11 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
      * Returns a set of buckets for the shape at different precision level. Override this method for different bucket
      * aggregations.
      *
-     * @param geometry           {@link Geometry}
-     * @param geoShapeDocValue   {@link GeoShapeDocValue}
-     * @param intersectingWithBB boolean
+     * @param geometry         {@link Geometry}
+     * @param geoShapeDocValue {@link GeoShapeDocValue}
      * @return A {@link Set} of {@link String} which represents the buckets.
      */
-    protected abstract Set<String> generateBucketsForGeometry(
-        final Geometry geometry,
-        final GeoShapeDocValue geoShapeDocValue,
-        final boolean intersectingWithBB
-    );
+    protected abstract Set<String> generateBucketsForGeometry(final Geometry geometry, final GeoShapeDocValue geoShapeDocValue);
 
     /**
      * Prepares a GeoPoint index for testing the GeoPoint bucket aggregations. Different bucket aggregations can use
