@@ -205,6 +205,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -2079,7 +2080,17 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         actionFilters,
                         indexNameExpressionResolver,
-                        namedWriteableRegistry
+                        namedWriteableRegistry,
+                        new SearchPipelineService(
+                            clusterService,
+                            threadPool,
+                            environment,
+                            scriptService,
+                            new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
+                            namedXContentRegistry,
+                            List.of(),
+                            client
+                        )
                     )
                 );
                 actions.put(
