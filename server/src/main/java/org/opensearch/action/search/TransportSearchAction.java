@@ -377,6 +377,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }, listener);
     }
 
+    // this at Cooridnator node level
     private void executeRequest(
         Task task,
         SearchRequest originalSearchRequest,
@@ -1211,7 +1212,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                        searchPipelineService
                     );
                     break;
                 default:

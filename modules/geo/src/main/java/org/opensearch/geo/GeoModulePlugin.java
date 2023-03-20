@@ -32,6 +32,7 @@
 
 package org.opensearch.geo;
 
+import org.opensearch.geo.pipeline.NormalizationProcessor;
 import org.opensearch.geo.search.aggregations.bucket.composite.GeoTileGridValuesSourceBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
@@ -42,16 +43,19 @@ import org.opensearch.geo.search.aggregations.metrics.GeoBoundsAggregationBuilde
 import org.opensearch.geo.search.aggregations.metrics.InternalGeoBounds;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.index.mapper.Mapper;
+import org.opensearch.plugins.IngestPlugin;
 import org.opensearch.plugins.MapperPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.opensearch.search.pipeline.Processor;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugin {
+public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugin, SearchPipelinePlugin, IngestPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
@@ -101,5 +105,9 @@ public class GeoModulePlugin extends Plugin implements MapperPlugin, SearchPlugi
                 GeoTileGridValuesSourceBuilder.TYPE
             )
         );
+    }
+
+    public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
+        return Collections.singletonMap(NormalizationProcessor.NAME, new NormalizationProcessor.NormalizationProcessorFactory());
     }
 }

@@ -9,11 +9,15 @@
 package org.opensearch.search.pipeline;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.search.SearchPhaseContext;
+import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.ingest.ConfigurationUtils;
+import org.opensearch.search.SearchPhaseResult;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,6 +35,7 @@ class Pipeline {
 
     public static final String REQUEST_PROCESSORS_KEY = "request_processors";
     public static final String RESPONSE_PROCESSORS_KEY = "response_processors";
+    public static final String PHASE_PROCESSORS_KEY = "phase_processors";
     private final String id;
     private final String description;
     private final Integer version;
@@ -40,18 +45,22 @@ class Pipeline {
     private final List<SearchRequestProcessor> searchRequestProcessors;
     private final List<SearchResponseProcessor> searchResponseProcessors;
 
+    private final List<SearchPhaseProcessor> searchPhaseProcessors;
+
     Pipeline(
         String id,
         @Nullable String description,
         @Nullable Integer version,
         List<SearchRequestProcessor> requestProcessors,
-        List<SearchResponseProcessor> responseProcessors
+        List<SearchResponseProcessor> responseProcessors,
+        List<SearchPhaseProcessor> phaseProcessorConfigs
     ) {
         this.id = id;
         this.description = description;
         this.version = version;
         this.searchRequestProcessors = requestProcessors;
         this.searchResponseProcessors = responseProcessors;
+        this.searchPhaseProcessors = phaseProcessorConfigs;
     }
 
     public static Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories)
@@ -70,10 +79,17 @@ class Pipeline {
             config,
             RESPONSE_PROCESSORS_KEY
         );
+
+        List<Map<String, Object>> phaseProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, PHASE_PROCESSORS_KEY);
         List<SearchResponseProcessor> responseProcessors = readProcessors(
             SearchResponseProcessor.class,
             processorFactories,
             responseProcessorConfigs
+        );
+        final List<SearchPhaseProcessor> phaseProcessors = readProcessors(
+            SearchPhaseProcessor.class,
+            processorFactories,
+            phaseProcessorConfigs
         );
         if (config.isEmpty() == false) {
             throw new OpenSearchParseException(
@@ -83,7 +99,7 @@ class Pipeline {
                     + Arrays.toString(config.keySet().toArray())
             );
         }
-        return new Pipeline(id, description, version, requestProcessors, responseProcessors);
+        return new Pipeline(id, description, version, requestProcessors, responseProcessors, phaseProcessors);
     }
 
     @SuppressWarnings("unchecked") // Cast is checked using isInstance
@@ -144,18 +160,21 @@ class Pipeline {
     }
 
     SearchRequest transformRequest(SearchRequest originalRequest) throws SearchPipelineProcessingException {
-        try {
-            // Save the original request by deep cloning the existing request.
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-            originalRequest.writeTo(bytesStreamOutput);
-            SearchRequest request = new SearchRequest(bytesStreamOutput.bytes().streamInput());
-            for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
-                request = searchRequestProcessor.processRequest(request);
+        if (CollectionUtils.isEmpty(searchRequestProcessors) == false) {
+            try {
+                // Save the original request by deep cloning the existing request.
+                BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+                originalRequest.writeTo(bytesStreamOutput);
+                SearchRequest request = new SearchRequest(bytesStreamOutput.bytes().streamInput());
+                for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
+                    request = searchRequestProcessor.processRequest(originalRequest);
+                }
+                return request;
+            } catch (Exception e) {
+                throw new SearchPipelineProcessingException(e);
             }
-            return request;
-        } catch (Exception e) {
-            throw new SearchPipelineProcessingException(e);
         }
+        return originalRequest;
     }
 
     SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws SearchPipelineProcessingException {
@@ -164,6 +183,20 @@ class Pipeline {
                 response = responseProcessor.processResponse(request, response);
             }
             return response;
+        } catch (Exception e) {
+            throw new SearchPipelineProcessingException(e);
+        }
+    }
+
+    SearchPhaseResults<SearchPhaseResult> runSearchPhaseTransformer(
+        SearchPhaseResults<SearchPhaseResult> searchPhaseResult,
+        SearchPhaseContext context
+    ) throws SearchPipelineProcessingException {
+        try {
+            for (SearchPhaseProcessor searchPhaseProcessor : searchPhaseProcessors) {
+                searchPhaseResult = searchPhaseProcessor.execute(searchPhaseResult, context);
+            }
+            return searchPhaseResult;
         } catch (Exception e) {
             throw new SearchPipelineProcessingException(e);
         }

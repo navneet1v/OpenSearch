@@ -696,6 +696,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+        // This is the place where we need to put the logic what should be done once the phase is completed.
+        // we check if there are some request Processors that needs to be run.
         executeNextPhase(this, getNextPhase(results, this));
     }
 

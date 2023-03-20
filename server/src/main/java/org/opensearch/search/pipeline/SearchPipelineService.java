@@ -16,6 +16,8 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.PutSearchPipelineRequest;
+import org.opensearch.action.search.SearchPhaseContext;
+import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
@@ -40,6 +42,7 @@ import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.node.ReportingService;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -337,6 +340,21 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             return pipeline.pipeline.transformResponse(request, searchResponse);
         }
         return searchResponse;
+    }
+
+    public SearchPhaseResults<SearchPhaseResult> runSearchPhaseTransformer(
+        final SearchPhaseResults<SearchPhaseResult> searchPhaseResult,
+        final SearchPhaseContext searchPhaseContext
+    ) {
+        final String pipelineId = searchPhaseContext.getRequest().pipeline();
+        if (pipelineId != null) {
+            PipelineHolder pipeline = pipelines.get(pipelineId);
+            if (pipeline == null) {
+                throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
+            }
+            return pipeline.pipeline.runSearchPhaseTransformer(searchPhaseResult, searchPhaseContext);
+        }
+        return searchPhaseResult;
     }
 
     Map<String, Processor.Factory> getProcessorFactories() {

@@ -42,6 +42,7 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.Transport;
 
@@ -65,6 +66,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
 
+    private final SearchPipelineService searchPipelineService;
+
     SearchQueryThenFetchAsyncAction(
         final Logger logger,
         final SearchTransportService searchTransportService,
@@ -81,7 +84,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         final TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchPipelineService searchPipelineService
     ) {
         super(
             "query",
@@ -106,6 +110,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
+        this.searchPipelineService = searchPipelineService;
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
@@ -161,6 +166,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+        searchPipelineService.runSearchPhaseTransformer(results, context);
+        // This is the phase
         return new FetchSearchPhase(results, searchPhaseController, null, this);
     }
 
