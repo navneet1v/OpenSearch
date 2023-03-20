@@ -21,6 +21,7 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchPhaseProcessor;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -58,12 +59,12 @@ public class NormalizationProcessor implements SearchPhaseProcessor {
     }
 
     @Override
-    public SearchPhaseResults<SearchPhaseResult> execute(
-        final SearchPhaseResults<SearchPhaseResult> searchPhaseResults,
+    public <Result extends SearchPhaseResult> SearchPhaseResults<Result> execute(
+        final SearchPhaseResults<Result> searchPhaseResults,
         final SearchPhaseContext searchPhaseContext
     ) {
         // this has the all the query results.
-        final AtomicArray<SearchPhaseResult> resultAtomicArray = searchPhaseResults.getAtomicArray();
+        final AtomicArray<SearchPhaseResult> resultAtomicArray = (AtomicArray<SearchPhaseResult>) searchPhaseResults.getAtomicArray();
         for (int i = 0; i < resultAtomicArray.length(); i++) {
             final SearchPhaseResult result = resultAtomicArray.get(i);
 
@@ -96,12 +97,24 @@ public class NormalizationProcessor implements SearchPhaseProcessor {
 
     @Override
     public SearchPhase getBeforePhase() {
-        return null;
+        // This is a dummy implementation of phase
+        return new SearchPhase("query") {
+            @Override
+            public void run() throws IOException {
+
+            }
+        };
     }
 
     @Override
     public SearchPhase getAfterPhase() {
-        return null;
+        // This is a dummy implementation of phase
+        return new SearchPhase("fetch") {
+            @Override
+            public void run() throws IOException {
+
+            }
+        };
     }
 
     public static class NormalizationProcessorFactory implements Processor.Factory {

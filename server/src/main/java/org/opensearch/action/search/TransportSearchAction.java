@@ -345,7 +345,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     task,
                     new ArraySearchPhaseResults<>(shardsIts.size()),
                     searchRequest.getMaxConcurrentShardRequests(),
-                    clusters
+                    clusters, searchPipelineService
                 ) {
                     @Override
                     protected void executePhaseOnShard(
@@ -1162,7 +1162,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         }
                     };
                 },
-                clusters
+                clusters,
+                    searchPipelineService
             );
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
@@ -1192,7 +1193,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters
+                        clusters,
+                            searchPipelineService
                     );
                     break;
                 case QUERY_THEN_FETCH:
