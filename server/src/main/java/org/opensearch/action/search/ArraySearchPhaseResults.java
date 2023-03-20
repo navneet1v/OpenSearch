@@ -42,10 +42,10 @@ import java.util.stream.Stream;
  *
  * @opensearch.internal
  */
-class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
+public class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
     final AtomicArray<Result> results;
 
-    ArraySearchPhaseResults(int size) {
+    public ArraySearchPhaseResults(int size) {
         super(size);
         this.results = new AtomicArray<>(size);
     }
@@ -66,7 +66,7 @@ class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPh
     }
 
     @Override
-    AtomicArray<Result> getAtomicArray() {
+    public AtomicArray<Result> getAtomicArray() {
         return results;
     }
 }

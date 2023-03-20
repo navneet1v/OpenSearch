@@ -706,6 +706,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return threadPool.executor(executorName);
     }
 
+    // This is the place from where the shard Fetch phase call starts
     public void executeFetchPhase(
         InternalScrollSearchRequest request,
         SearchShardTask task,
