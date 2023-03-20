@@ -17,8 +17,8 @@ import org.opensearch.search.SearchPhaseResult;
  * Creates a processor that runs between Phases of the Search Request.
  */
 public interface SearchPhaseProcessor extends Processor {
-    SearchPhaseResults<SearchPhaseResult> execute(
-        final SearchPhaseResults<SearchPhaseResult> searchPhaseResult,
+    <Result extends SearchPhaseResult> SearchPhaseResults<Result> execute(
+        final SearchPhaseResults<Result> searchPhaseResult,
         final SearchPhaseContext searchPhaseContext
     );
 

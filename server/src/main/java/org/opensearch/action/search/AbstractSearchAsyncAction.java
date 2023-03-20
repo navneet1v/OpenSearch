@@ -57,6 +57,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -116,6 +117,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final boolean throttleConcurrentRequests;
 
     private final List<Releasable> releasables = new ArrayList<>();
+    private final SearchPipelineService searchPipelineService;
 
     AbstractSearchAsyncAction(
         String name,
@@ -134,7 +136,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchTask task,
         SearchPhaseResults<Result> resultConsumer,
         int maxConcurrentRequestsPerNode,
-        SearchResponse.Clusters clusters
+        SearchResponse.Clusters clusters,
+        SearchPipelineService searchPipelineService
     ) {
         super(name);
         final List<SearchShardIterator> toSkipIterators = new ArrayList<>();
@@ -170,6 +173,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
+        this.searchPipelineService = searchPipelineService;
     }
 
     @Override
@@ -698,7 +702,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
         // This is the place where we need to put the logic what should be done once the phase is completed.
         // we check if there are some request Processors that needs to be run.
-        executeNextPhase(this, getNextPhase(results, this));
+        final SearchPhase nextPhase = getNextPhase(results, this);
+        searchPipelineService.runSearchPhaseTransformer(results, this, this, nextPhase);
+        executeNextPhase(this, nextPhase);
     }
 
     @Override

@@ -66,8 +66,6 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
 
-    private final SearchPipelineService searchPipelineService;
-
     SearchQueryThenFetchAsyncAction(
         final Logger logger,
         final SearchTransportService searchTransportService,
@@ -104,13 +102,12 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
-            clusters
+            clusters, searchPipelineService
         );
         this.topDocsSize = SearchPhaseController.getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();
         this.searchPhaseController = searchPhaseController;
         this.progressListener = task.getProgressListener();
-        this.searchPipelineService = searchPipelineService;
 
         // register the release of the query consumer to free up the circuit breaker memory
         // at the end of the search
@@ -166,7 +163,6 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-        searchPipelineService.runSearchPhaseTransformer(results, context);
         // This is the phase
         return new FetchSearchPhase(results, searchPhaseController, null, this);
     }

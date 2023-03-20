@@ -31,6 +31,7 @@
 
 package org.opensearch.action.search;
 
+import org.mockito.Mock;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.OriginalIndices;
@@ -50,6 +51,7 @@ import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
@@ -77,6 +79,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class SearchAsyncActionTests extends OpenSearchTestCase {
+
+    @Mock
+    private SearchPipelineService searchPipelineService;
 
     public void testSkipSearchShards() throws InterruptedException {
         SearchRequest request = new SearchRequest();
@@ -135,7 +140,7 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY, searchPipelineService
         ) {
 
             @Override
@@ -253,7 +258,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+                searchPipelineService
         ) {
 
             @Override
@@ -368,7 +374,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+                searchPipelineService
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -490,7 +497,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+                searchPipelineService
         ) {
             TestSearchResponse response = new TestSearchResponse();
 
@@ -603,7 +611,8 @@ public class SearchAsyncActionTests extends OpenSearchTestCase {
             null,
             new ArraySearchPhaseResults<>(shardsIter.size()),
             request.getMaxConcurrentShardRequests(),
-            SearchResponse.Clusters.EMPTY
+            SearchResponse.Clusters.EMPTY,
+                searchPipelineService
         ) {
 
             @Override

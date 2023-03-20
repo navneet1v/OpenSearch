@@ -16,6 +16,7 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.PutSearchPipelineRequest;
+import org.opensearch.action.search.SearchPhase;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
@@ -342,9 +343,11 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return searchResponse;
     }
 
-    public SearchPhaseResults<SearchPhaseResult> runSearchPhaseTransformer(
-        final SearchPhaseResults<SearchPhaseResult> searchPhaseResult,
-        final SearchPhaseContext searchPhaseContext
+    public <Result extends SearchPhaseResult> SearchPhaseResults<Result> runSearchPhaseTransformer(
+        final SearchPhaseResults<Result> searchPhaseResult,
+        final SearchPhaseContext searchPhaseContext,
+        SearchPhase currentPhase,
+        SearchPhase nextPhase
     ) {
         final String pipelineId = searchPhaseContext.getRequest().pipeline();
         if (pipelineId != null) {
@@ -352,7 +355,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
             }
-            return pipeline.pipeline.runSearchPhaseTransformer(searchPhaseResult, searchPhaseContext);
+            return pipeline.pipeline.runSearchPhaseTransformer(searchPhaseResult, searchPhaseContext, currentPhase,
+                    nextPhase);
         }
         return searchPhaseResult;
     }

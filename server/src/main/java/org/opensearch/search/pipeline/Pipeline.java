@@ -9,6 +9,7 @@
 package org.opensearch.search.pipeline;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.action.search.SearchPhase;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseResults;
 import org.opensearch.action.search.SearchRequest;
@@ -188,13 +189,15 @@ class Pipeline {
         }
     }
 
-    SearchPhaseResults<SearchPhaseResult> runSearchPhaseTransformer(
-        SearchPhaseResults<SearchPhaseResult> searchPhaseResult,
-        SearchPhaseContext context
+    <Result extends SearchPhaseResult> SearchPhaseResults<Result> runSearchPhaseTransformer(
+        SearchPhaseResults<Result> searchPhaseResult,
+        SearchPhaseContext context, SearchPhase currentPhase, SearchPhase nextPhase
     ) throws SearchPipelineProcessingException {
         try {
             for (SearchPhaseProcessor searchPhaseProcessor : searchPhaseProcessors) {
-                searchPhaseResult = searchPhaseProcessor.execute(searchPhaseResult, context);
+                if(currentPhase.getName().equals(searchPhaseProcessor.getBeforePhase().getName()) && nextPhase.getName().equals(searchPhaseProcessor.getAfterPhase().getName())) {
+                    searchPhaseResult = searchPhaseProcessor.execute(searchPhaseResult, context);
+                }
             }
             return searchPhaseResult;
         } catch (Exception e) {
