@@ -191,11 +191,13 @@ class Pipeline {
 
     <Result extends SearchPhaseResult> SearchPhaseResults<Result> runSearchPhaseTransformer(
         SearchPhaseResults<Result> searchPhaseResult,
-        SearchPhaseContext context, SearchPhase currentPhase, SearchPhase nextPhase
+        SearchPhaseContext context,
+        SearchPhase currentPhase,
+        SearchPhase nextPhase
     ) throws SearchPipelineProcessingException {
         try {
             for (SearchPhaseProcessor searchPhaseProcessor : searchPhaseProcessors) {
-                if(currentPhase.getName().equals(searchPhaseProcessor.getBeforePhase().getName()) && nextPhase.getName().equals(searchPhaseProcessor.getAfterPhase().getName())) {
+                if (searchPhaseProcessor.runProcessor(searchPhaseResult, context, currentPhase, nextPhase)) {
                     searchPhaseResult = searchPhaseProcessor.execute(searchPhaseResult, context);
                 }
             }

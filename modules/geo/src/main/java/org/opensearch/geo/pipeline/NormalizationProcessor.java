@@ -8,30 +8,30 @@
 
 package org.opensearch.geo.pipeline;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
+import org.opensearch.action.search.NormalizationPostSearchPhaseProcessor;
+import org.opensearch.action.search.PostSearchPhaseProcessor;
+import org.opensearch.action.search.QueryPhaseResultConsumer;
 import org.opensearch.action.search.SearchPhase;
 import org.opensearch.action.search.SearchPhaseContext;
 import org.opensearch.action.search.SearchPhaseResults;
-import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
-import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.lucene.search.CompoundQueryTopDocs;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.pipeline.Processor;
 import org.opensearch.search.pipeline.SearchPhaseProcessor;
 
-import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 
+/**
+ * This normalization processor should only run for Normalization Query Clauses. We need to find a way to do that. We
+ * don't want to run this for every Query Clause.
+ */
 public class NormalizationProcessor implements SearchPhaseProcessor {
-    private static final Logger LOG = LogManager.getLogger(NormalizationProcessor.class);
-
     public static final String NAME = "normalization_processor";
+    private final PostSearchPhaseProcessor postSearchPhaseProcessor;
 
     public NormalizationProcessor() {
-
+        postSearchPhaseProcessor = new NormalizationPostSearchPhaseProcessor();
     }
 
     /**
@@ -63,58 +63,34 @@ public class NormalizationProcessor implements SearchPhaseProcessor {
         final SearchPhaseResults<Result> searchPhaseResults,
         final SearchPhaseContext searchPhaseContext
     ) {
-        // this has the all the query results.
-        final AtomicArray<SearchPhaseResult> resultAtomicArray = (AtomicArray<SearchPhaseResult>) searchPhaseResults.getAtomicArray();
-        for (int i = 0; i < resultAtomicArray.length(); i++) {
-            final SearchPhaseResult result = resultAtomicArray.get(i);
-
-            if (result.queryResult() != null) {
-                final TopDocsAndMaxScore topDocsAndMaxScore = result.queryResult().topDocs();
-                final TopDocs topDocs = topDocsAndMaxScore.topDocs;
-                final ScoreDoc[] scoreDocs = topDocs.scoreDocs;
-                float maxScore = topDocsAndMaxScore.maxScore;
-                LOG.info("Current Max Score : " + topDocsAndMaxScore.maxScore);
-                for (final ScoreDoc scoreDoc : scoreDocs) {
-                    LOG.info("Score Docs is : {} \n", scoreDoc.toString());
-                    if (scoreDoc.doc == 1 && scoreDocs.length > 1) {
-                        scoreDoc.score = 4;
-                    }
-                    maxScore = Math.max(maxScore, scoreDoc.score);
+        if (searchPhaseResults instanceof QueryPhaseResultConsumer) {
+            QueryPhaseResultConsumer queryPhaseResultConsumer = (QueryPhaseResultConsumer) searchPhaseResults;
+            Optional<SearchPhaseResult> maybeResult = Optional.empty();
+            for (int i = 0; i < queryPhaseResultConsumer.getAtomicArray().length(); i++) {
+                if (queryPhaseResultConsumer.getAtomicArray().get(i) != null) {
+                    maybeResult = Optional.of(queryPhaseResultConsumer.getAtomicArray().get(i));
+                    // why we are breaking here? we should just bypass.
+                    break;
                 }
-                // Sort the topDocs. The way TopDocs merge works in fetch phase exactly similar to merges in Merge
-                // Sort. So if a TopDocs list is not sorted, then it can lead to unsorted hits lists.
-                Arrays.sort(scoreDocs, (i1, i2) -> (int) (i2.score - i1.score));
-                // updating max score
-                topDocsAndMaxScore.maxScore = maxScore;
-                LOG.info("final Max score for shard is : {}", topDocsAndMaxScore.maxScore);
-                LOG.info("Total Hits: {}", topDocs.totalHits);
-            } else {
-                LOG.info("The QueryResult is null for index {}", i);
+            }
+            // this seems like it works if all shards have provided the result. Good for POC but not for production
+            if (maybeResult.isPresent()
+                && maybeResult.get().queryResult() != null
+                && maybeResult.get().queryResult().topDocs().topDocs instanceof CompoundQueryTopDocs) {
+                postSearchPhaseProcessor.execute(searchPhaseResults, searchPhaseContext);
             }
         }
         return searchPhaseResults;
     }
 
     @Override
-    public SearchPhase getBeforePhase() {
-        // This is a dummy implementation of phase
-        return new SearchPhase("query") {
-            @Override
-            public void run() throws IOException {
-
-            }
-        };
-    }
-
-    @Override
-    public SearchPhase getAfterPhase() {
-        // This is a dummy implementation of phase
-        return new SearchPhase("fetch") {
-            @Override
-            public void run() throws IOException {
-
-            }
-        };
+    public <Result extends SearchPhaseResult> boolean runProcessor(
+        SearchPhaseResults<Result> searchPhaseResult,
+        SearchPhaseContext searchPhaseContext,
+        SearchPhase beforePhase,
+        SearchPhase nextPhase
+    ) {
+        return "query".equals(beforePhase.getName()) && "fetch".equals(nextPhase.getName());
     }
 
     public static class NormalizationProcessorFactory implements Processor.Factory {

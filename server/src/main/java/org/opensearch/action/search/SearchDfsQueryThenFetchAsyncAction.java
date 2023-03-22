@@ -98,7 +98,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             new ArraySearchPhaseResults<>(shardsIts.size()),
             request.getMaxConcurrentShardRequests(),
             clusters,
-                searchPipelineService
+            searchPipelineService
         );
         this.queryPhaseResultConsumer = queryPhaseResultConsumer;
         this.searchPhaseController = searchPhaseController;

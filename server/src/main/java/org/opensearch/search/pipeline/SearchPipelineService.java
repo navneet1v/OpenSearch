@@ -355,8 +355,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
             }
-            return pipeline.pipeline.runSearchPhaseTransformer(searchPhaseResult, searchPhaseContext, currentPhase,
-                    nextPhase);
+            return pipeline.pipeline.runSearchPhaseTransformer(searchPhaseResult, searchPhaseContext, currentPhase, nextPhase);
         }
         return searchPhaseResult;
     }

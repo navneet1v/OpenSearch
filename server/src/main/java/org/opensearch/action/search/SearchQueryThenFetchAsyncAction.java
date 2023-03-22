@@ -102,7 +102,8 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             task,
             resultConsumer,
             request.getMaxConcurrentShardRequests(),
-            clusters, searchPipelineService
+            clusters,
+            searchPipelineService
         );
         this.topDocsSize = SearchPhaseController.getTopDocsSize(request);
         this.trackTotalHitsUpTo = request.resolveTrackTotalHitsUpTo();

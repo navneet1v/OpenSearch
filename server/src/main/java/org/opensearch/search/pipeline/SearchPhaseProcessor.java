@@ -22,8 +22,21 @@ public interface SearchPhaseProcessor extends Processor {
         final SearchPhaseContext searchPhaseContext
     );
 
-    SearchPhase getBeforePhase();
-
-    SearchPhase getAfterPhase();
+    /**
+     * Validates before calling the execute method of the SearchPhaseProcessor to see whether we need to run the
+     * processor or not.
+     * @param searchPhaseResult {@link SearchPhaseResults}
+     * @param searchPhaseContext {@link SearchPhaseContext}
+     * @param beforePhase {@link SearchPhase}
+     * @param nextPhase {@link SearchPhase}
+     * @return boolean
+     * @param <Result> {@link SearchPhaseResult}
+     */
+    <Result extends SearchPhaseResult> boolean runProcessor(
+        final SearchPhaseResults<Result> searchPhaseResult,
+        final SearchPhaseContext searchPhaseContext,
+        final SearchPhase beforePhase,
+        final SearchPhase nextPhase
+    );
 
 }

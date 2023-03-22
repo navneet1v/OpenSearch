@@ -66,6 +66,7 @@ import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
+import org.opensearch.action.search.PostSearchPhaseProcessor;
 import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.rescore.Rescorer;
 import org.opensearch.search.rescore.RescorerBuilder;
@@ -204,6 +205,10 @@ public interface SearchPlugin {
      * {@link QueryPhaseSearcher} implementation.
      */
     default Optional<QueryPhaseSearcher> getQueryPhaseSearcher() {
+        return Optional.empty();
+    }
+
+    default Optional<PostSearchPhaseProcessor> getPostSearchPhaseProcessor() {
         return Optional.empty();
     }
 
