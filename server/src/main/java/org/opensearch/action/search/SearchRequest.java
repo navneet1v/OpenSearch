@@ -118,6 +118,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private String pipeline;
 
+    private Boolean optimizeQueryAndFetch;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -202,6 +204,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.preference = searchRequest.preference;
         this.preFilterShardSize = searchRequest.preFilterShardSize;
         this.requestCache = searchRequest.requestCache;
+        this.optimizeQueryAndFetch = searchRequest.optimizeQueryAndFetch;
         this.routing = searchRequest.routing;
         this.scroll = searchRequest.scroll;
         this.searchType = searchRequest.searchType;
@@ -263,6 +266,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             pipeline = in.readOptionalString();
         }
+        // have a version check here for this boolean
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            optimizeQueryAndFetch = in.readOptionalBoolean();
+        }
     }
 
     @Override
@@ -303,6 +310,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalString(pipeline);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeOptionalBoolean(optimizeQueryAndFetch);
+        }
     }
 
     @Override
@@ -330,6 +340,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             if (requestCache != null && requestCache) {
                 validationException = addValidationError("[request_cache] cannot be used in a scroll context", validationException);
             }
+            if (optimizeQueryAndFetch != null && optimizeQueryAndFetch) {
+                validationException = addValidationError(
+                    "[optimize_query_and_fetch] cannot be used in a scroll " + "context",
+                    validationException
+                );
+            }
+
         }
         if (source != null) {
             if (source.aggregations() != null) {
@@ -561,6 +578,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return this.requestCache;
     }
 
+    public SearchRequest optimizeQueryAndFetch(Boolean optimizeQueryAndFetch) {
+        this.optimizeQueryAndFetch = optimizeQueryAndFetch;
+        return this;
+    }
+
+    public Boolean optimizeQueryAndFetch() {
+        return this.optimizeQueryAndFetch;
+    }
+
     /**
      * Sets if this request should allow partial results. (If method is not called,
      * will default to the cluster level setting).
@@ -738,7 +764,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
-            && Objects.equals(pipeline, that.pipeline);
+            && Objects.equals(pipeline, that.pipeline)
+            && Objects.equals(optimizeQueryAndFetch, that.optimizeQueryAndFetch);
     }
 
     @Override
@@ -802,6 +829,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + cancelAfterTimeInterval
             + ", pipeline="
             + pipeline
+            + ", optimizeQueryAndFetch="
+            + optimizeQueryAndFetch
             + "}";
     }
 }

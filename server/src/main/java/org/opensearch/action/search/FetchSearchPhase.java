@@ -37,11 +37,15 @@ import org.apache.lucene.search.ScoreDoc;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.search.RescoreDocIds;
+import org.opensearch.search.SearchHit;
+import org.opensearch.search.SearchHits;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.dfs.AggregatedDfs;
 import org.opensearch.search.fetch.FetchSearchResult;
+import org.opensearch.search.fetch.QueryFetchSearchResult;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
@@ -49,8 +53,12 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.transport.Transport;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * This search phase merges the query results from the previous phase together and calculates the topN hits for this search.
@@ -134,6 +142,7 @@ final class FetchSearchPhase extends SearchPhase {
         final boolean isScrollSearch = context.getRequest().scroll() != null;
         final List<SearchPhaseResult> phaseResults = queryResults.asList();
         final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = resultConsumer.reduce();
+        // Fetch Phase Optimization
         final boolean queryAndFetchOptimization = queryResults.length() == 1;
         final Runnable finishPhase = () -> moveToNextPhase(
             searchPhaseController,
@@ -181,10 +190,6 @@ final class FetchSearchPhase extends SearchPhase {
                         counter.countDown();
                     } else {
                         SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
-                        Transport.Connection connection = context.getConnection(
-                            searchShardTarget.getClusterAlias(),
-                            searchShardTarget.getNodeId()
-                        );
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(
                             queryResult.queryResult().getContextId(),
                             i,
@@ -194,7 +199,17 @@ final class FetchSearchPhase extends SearchPhase {
                             queryResult.getShardSearchRequest(),
                             queryResult.getRescoreDocIds()
                         );
-                        executeFetch(i, searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(), connection);
+                        if (CollectionUtils.isEmpty(phaseResults) == false && phaseResults.get(0) instanceof QueryFetchSearchResult) {
+                            // As the results are already retrieved, so no call should be made for fetch phase
+                            executeLocalFetch(i, counter, fetchSearchRequest, queryResult);
+                        } else {
+                            Transport.Connection connection = context.getConnection(
+                                searchShardTarget.getClusterAlias(),
+                                searchShardTarget.getNodeId()
+                            );
+                            executeFetch(i, searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(), connection);
+                        }
+
                     }
                 }
             }
@@ -220,6 +235,41 @@ final class FetchSearchPhase extends SearchPhase {
             rescoreDocIds,
             aggregatedDfs
         );
+    }
+
+    private void executeLocalFetch(
+        final int shardIndex,
+        final CountedCollector<FetchSearchResult> counter,
+        final ShardFetchSearchRequest fetchSearchRequest,
+        final SearchPhaseResult querySearchResult
+    ) {
+        logger.info("Starting the optimized fetch phase for Shard: {}", shardIndex);
+        progressListener.notifyFetchResult(shardIndex);
+
+        FetchSearchResult fetchSearchResult = querySearchResult.fetchResult();
+
+        Map<Integer, SearchHit> searchHitMap = Arrays.stream(fetchSearchResult.hits().getHits())
+            .collect(Collectors.toMap(SearchHit::docId, Function.identity()));
+        SearchHit[] finalSearchHitArray = new SearchHit[fetchSearchRequest.docIds().length];
+        fetchSearchRequest.docIds();
+        int j = 0;
+        for (int docId : fetchSearchRequest.docIds()) {
+            if (searchHitMap.get(docId) != null) {
+                finalSearchHitArray[j] = searchHitMap.get(docId);
+                j++;
+            }
+        }
+        SearchHits newSearchHits = new SearchHits(
+            finalSearchHitArray,
+            fetchSearchResult.hits().getTotalHits(),
+            fetchSearchResult.hits().getMaxScore(),
+            fetchSearchResult.hits().getSortFields(),
+            fetchSearchResult.hits().getCollapseField(),
+            fetchSearchResult.hits().getCollapseValues()
+        );
+        fetchSearchResult.hits(newSearchHits);
+        counter.onResult(fetchSearchResult);
+        logger.info("Completed the optimized fetch phase for Shard: {}", shardIndex);
     }
 
     private void executeFetch(

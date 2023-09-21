@@ -95,6 +95,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final Scroll scroll;
     private final float indexBoost;
     private final Boolean requestCache;
+
+    private final Boolean optimizeQueryAndFetch;
     private final long nowInMillis;
     private long inboundNetworkTime;
     private long outboundNetworkTime;
@@ -167,7 +169,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             nowInMillis,
             clusterAlias,
             readerId,
-            keepAlive
+            keepAlive,
+            searchRequest.optimizeQueryAndFetch()
         );
         // If allowPartialSearchResults is unset (ie null), the cluster-level default should have been substituted
         // at this stage. Any NPEs in the above are therefore an error in request preparation logic.
@@ -191,6 +194,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             nowInMillis,
             null,
             null,
+            null,
             null
         );
     }
@@ -211,7 +215,8 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         long nowInMillis,
         @Nullable String clusterAlias,
         ShardSearchContextId readerId,
-        TimeValue keepAlive
+        TimeValue keepAlive,
+        Boolean optimizeQueryAndFetch
     ) {
         this.shardId = shardId;
         this.numberOfShards = numberOfShards;
@@ -232,6 +237,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.readerId = readerId;
         this.keepAlive = keepAlive;
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        this.optimizeQueryAndFetch = optimizeQueryAndFetch;
     }
 
     public ShardSearchRequest(StreamInput in) throws IOException {
@@ -280,6 +286,11 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
+        if (in.getVersion().onOrAfter(Version.V_2_10_0)) {
+            optimizeQueryAndFetch = in.readOptionalBoolean();
+        } else {
+            optimizeQueryAndFetch = null;
+        }
     }
 
     public ShardSearchRequest(ShardSearchRequest clone) {
@@ -303,6 +314,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.originalIndices = clone.originalIndices;
         this.readerId = clone.readerId;
         this.keepAlive = clone.keepAlive;
+        this.optimizeQueryAndFetch = clone.optimizeQueryAndFetch;
     }
 
     @Override
@@ -349,6 +361,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0) && asKey == false) {
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_10_0)) {
+            out.writeOptionalBoolean(optimizeQueryAndFetch);
         }
     }
 
@@ -422,6 +437,10 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     public Boolean requestCache() {
         return requestCache;
+    }
+
+    public Boolean optimizeQueryAndFetch() {
+        return optimizeQueryAndFetch;
     }
 
     public boolean allowPartialSearchResults() {

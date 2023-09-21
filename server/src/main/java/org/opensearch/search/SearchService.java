@@ -600,7 +600,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 afterQueryTime = executor.success();
             }
-            if (request.numberOfShards() == 1) {
+            logger.info(
+                "Query and Fetch phase optimization parameter value is : {}, shardsCount: {}",
+                request.optimizeQueryAndFetch(),
+                request.numberOfShards()
+            );
+            // Optimization
+            if (request.numberOfShards() == 1 || request.optimizeQueryAndFetch() == Boolean.TRUE) {
+                logger.info("Query and Fetch phase is optimized");
                 return executeFetchPhase(readerContext, context, afterQueryTime);
             } else {
                 // Pass the rescoreDocIds to the queryResult to send them the coordinating node and receive them back in the fetch phase.
