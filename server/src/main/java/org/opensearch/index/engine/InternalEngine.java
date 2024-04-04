@@ -68,6 +68,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.NewSegmentMergePolicy;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -2115,6 +2116,90 @@ public class InternalEngine extends Engine {
         return Stream.concat(versionMap.getAllCurrent().entrySet().stream(), versionMap.getAllTombstones().entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
+
+
+    public void forceMerge(
+            boolean isOneMerge,
+            boolean flush,
+            int maxNumSegments,
+            boolean onlyExpungeDeletes,
+            boolean upgrade,
+            boolean upgradeOnlyAncientSegments,
+            @Nullable String forceMergeUUID
+    ) throws EngineException, IOException {
+        /*
+         * We do NOT acquire the readlock here since we are waiting on the merges to finish
+         * that's fine since the IW.rollback should stop all the threads and trigger an IOException
+         * causing us to fail the forceMerge
+         *
+         * The way we implement upgrades is a bit hackish in the sense that we set an instance
+         * variable and that this setting will thus apply to the next forced merge that will be run.
+         * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
+         * thread for optimize, and the 'optimizeLock' guarding this code, and (3) ConcurrentMergeScheduler
+         * syncs calls to findForcedMerges.
+         */
+        assert indexWriter.getConfig().getMergePolicy() instanceof OpenSearchMergePolicy : "MergePolicy is "
+                + indexWriter.getConfig().getMergePolicy().getClass().getName();
+        OpenSearchMergePolicy mp = (OpenSearchMergePolicy) indexWriter.getConfig().getMergePolicy();
+        optimizeLock.lock();
+        try {
+            ensureOpen();
+            if (upgrade) {
+                logger.info("starting segment upgrade upgradeOnlyAncientSegments={}", upgradeOnlyAncientSegments);
+                mp.setUpgradeInProgress(true, upgradeOnlyAncientSegments);
+            }
+            store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
+            try {
+                if(isOneMerge) {
+                    MergePolicy oldMergePolicy = indexWriter.getConfig().getMergePolicy();
+                    indexWriter.getConfig().setMergePolicy(new NewSegmentMergePolicy(indexWriter.getConfig().getMergePolicy()));
+                    indexWriter.forceMerge(1);
+                    indexWriter.getConfig().setMergePolicy(oldMergePolicy);
+                } else if (onlyExpungeDeletes) {
+                    assert upgrade == false;
+                    indexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
+                } else if (maxNumSegments <= 0) {
+                    assert upgrade == false;
+                    indexWriter.maybeMerge();
+                } else {
+                    indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
+                    this.forceMergeUUID = forceMergeUUID;
+                }
+                if (flush) {
+                    flush(false, true);
+                }
+                if (upgrade) {
+                    logger.info("finished segment upgrade");
+                }
+            } finally {
+                store.decRef();
+            }
+        } catch (AlreadyClosedException ex) {
+            /* in this case we first check if the engine is still open. If so this exception is just fine
+             * and expected. We don't hold any locks while we block on forceMerge otherwise it would block
+             * closing the engine as well. If we are not closed we pass it on to failOnTragicEvent which ensures
+             * we are handling a tragic even exception here */
+            ensureOpen(ex);
+            failOnTragicEvent(ex);
+            throw ex;
+        } catch (Exception e) {
+            try {
+                maybeFailEngine(FORCE_MERGE, e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw e;
+        } finally {
+            try {
+                // reset it just to make sure we reset it in a case of an error
+                mp.setUpgradeInProgress(false, false);
+            } finally {
+                optimizeLock.unlock();
+            }
+        }
+    }
+
+
 
     @Override
     public void forceMerge(
