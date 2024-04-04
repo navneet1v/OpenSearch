@@ -41,6 +41,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -1225,6 +1226,19 @@ public abstract class Engine implements LifecycleAware, Closeable {
         boolean upgradeOnlyAncientSegments,
         String forceMergeUUID
     ) throws EngineException, IOException;
+
+    public void forceMerge(
+            boolean isOneMerge,
+            boolean flush,
+            int maxNumSegments,
+            boolean onlyExpungeDeletes,
+            boolean upgrade,
+            boolean upgradeOnlyAncientSegments,
+            @Nullable String forceMergeUUID
+    ) throws EngineException, IOException {
+        this.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, upgrade, upgradeOnlyAncientSegments,
+                forceMergeUUID);
+    }
 
     /**
      * Snapshots the most recent index and returns a handle to it. If needed will try and "commit" the

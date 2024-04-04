@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
+import org.apache.lucene.index.MergePolicy;
 import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.UUIDs;
@@ -70,7 +71,10 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         public static final boolean ONLY_EXPUNGE_DELETES = false;
         public static final boolean FLUSH = true;
         public static final boolean PRIMARY_ONLY = false;
+        public static final boolean ONE_MERGE = false;
     }
+
+    public boolean isOneMerge = Defaults.ONE_MERGE;
 
     private int maxNumSegments = Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
