@@ -2117,15 +2117,14 @@ public class InternalEngine extends Engine {
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-
     public void forceMerge(
-            boolean isOneMerge,
-            boolean flush,
-            int maxNumSegments,
-            boolean onlyExpungeDeletes,
-            boolean upgrade,
-            boolean upgradeOnlyAncientSegments,
-            @Nullable String forceMergeUUID
+        boolean isOneMerge,
+        boolean flush,
+        int maxNumSegments,
+        boolean onlyExpungeDeletes,
+        boolean upgrade,
+        boolean upgradeOnlyAncientSegments,
+        @Nullable String forceMergeUUID
     ) throws EngineException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
@@ -2139,7 +2138,7 @@ public class InternalEngine extends Engine {
          * syncs calls to findForcedMerges.
          */
         assert indexWriter.getConfig().getMergePolicy() instanceof OpenSearchMergePolicy : "MergePolicy is "
-                + indexWriter.getConfig().getMergePolicy().getClass().getName();
+            + indexWriter.getConfig().getMergePolicy().getClass().getName();
         OpenSearchMergePolicy mp = (OpenSearchMergePolicy) indexWriter.getConfig().getMergePolicy();
         optimizeLock.lock();
         try {
@@ -2150,7 +2149,7 @@ public class InternalEngine extends Engine {
             }
             store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
             try {
-                if(isOneMerge) {
+                if (isOneMerge) {
                     MergePolicy oldMergePolicy = indexWriter.getConfig().getMergePolicy();
                     indexWriter.getConfig().setMergePolicy(new NewSegmentMergePolicy(indexWriter.getConfig().getMergePolicy()));
                     indexWriter.forceMerge(1);
@@ -2198,8 +2197,6 @@ public class InternalEngine extends Engine {
             }
         }
     }
-
-
 
     @Override
     public void forceMerge(

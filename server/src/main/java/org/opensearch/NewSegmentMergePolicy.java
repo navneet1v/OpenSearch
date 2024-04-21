@@ -21,18 +21,23 @@ import java.util.Map;
  */
 public class NewSegmentMergePolicy extends FilterMergePolicy {
     private boolean mergeCompleted;
+
     public NewSegmentMergePolicy(MergePolicy in) {
         super(in);
         mergeCompleted = false;
     }
 
-
     /**
      * Rnad doc
      */
     @Override
-    public MergeSpecification findForcedMerges(SegmentInfos segmentInfos, int maxSegmentCount, Map<SegmentCommitInfo, Boolean> segmentsToMerge, MergeContext mergeContext) throws IOException {
-        if(mergeCompleted) {
+    public MergeSpecification findForcedMerges(
+        SegmentInfos segmentInfos,
+        int maxSegmentCount,
+        Map<SegmentCommitInfo, Boolean> segmentsToMerge,
+        MergeContext mergeContext
+    ) throws IOException {
+        if (mergeCompleted) {
             return null;
         }
         mergeCompleted = true;

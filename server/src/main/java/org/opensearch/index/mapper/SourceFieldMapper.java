@@ -33,7 +33,6 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
@@ -211,13 +210,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             final BytesRef ref = adaptedSource.toBytesRef();
             context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
         }
-
-        if (originalSource != null && adaptedSource != originalSource) {
-            // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
-            BytesRef ref = originalSource.toBytesRef();
-            context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
-            context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
-        }
+        // Disbaling the recovery source here to ensure that if we disable the source nothing is stored during indexing
+        // if (originalSource != null && adaptedSource != originalSource) {
+        // // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
+        // BytesRef ref = originalSource.toBytesRef();
+        // context.doc().add(new StoredField(RECOVERY_SOURCE_NAME, ref.bytes, ref.offset, ref.length));
+        // context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_NAME, 1));
+        // }
     }
 
     @Nullable

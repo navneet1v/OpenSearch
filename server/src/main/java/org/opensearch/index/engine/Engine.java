@@ -41,7 +41,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
@@ -1280,16 +1279,15 @@ public abstract class Engine implements Closeable {
     ) throws EngineException, IOException;
 
     public void forceMerge(
-            boolean isOneMerge,
-            boolean flush,
-            int maxNumSegments,
-            boolean onlyExpungeDeletes,
-            boolean upgrade,
-            boolean upgradeOnlyAncientSegments,
-            @Nullable String forceMergeUUID
+        boolean isOneMerge,
+        boolean flush,
+        int maxNumSegments,
+        boolean onlyExpungeDeletes,
+        boolean upgrade,
+        boolean upgradeOnlyAncientSegments,
+        @Nullable String forceMergeUUID
     ) throws EngineException, IOException {
-        this.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, upgrade, upgradeOnlyAncientSegments,
-                forceMergeUUID);
+        this.forceMerge(flush, maxNumSegments, onlyExpungeDeletes, upgrade, upgradeOnlyAncientSegments, forceMergeUUID);
     }
 
     /**
