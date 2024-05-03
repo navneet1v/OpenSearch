@@ -2153,6 +2153,7 @@ public class InternalEngine extends Engine {
                     MergePolicy oldMergePolicy = indexWriter.getConfig().getMergePolicy();
                     indexWriter.getConfig().setMergePolicy(new NewSegmentMergePolicy(indexWriter.getConfig().getMergePolicy()));
                     indexWriter.forceMerge(1);
+                    this.forceMergeUUID = forceMergeUUID;
                     indexWriter.getConfig().setMergePolicy(oldMergePolicy);
                 } else if (onlyExpungeDeletes) {
                     assert upgrade == false;
