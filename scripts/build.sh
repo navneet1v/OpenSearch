@@ -73,10 +73,10 @@ fi
 mkdir -p $OUTPUT/maven/org/opensearch
 
 # Build project and publish to maven local.
-./gradlew publishToMavenLocal -Dbuild.snapshot=$SNAPSHOT -Dbuild.version_qualifier=$QUALIFIER
+./gradlew publishToMavenLocal -Dbuild.snapshot=$SNAPSHOT -Dbuild.version_qualifier=$QUALIFIER -Drepos.mavenLocal=true
 
 # Publish to existing test repo, using this to stage release versions of the artifacts that can be released from the same build.
-./gradlew publishNebulaPublicationToTestRepository -Dbuild.snapshot=$SNAPSHOT -Dbuild.version_qualifier=$QUALIFIER
+./gradlew publishNebulaPublicationToTestRepository -Dbuild.snapshot=$SNAPSHOT -Dbuild.version_qualifier=$QUALIFIER -Drepos.mavenLocal=true
 
 # Copy maven publications to be promoted
 cp -r ./build/local-test-repo/org/opensearch "${OUTPUT}"/maven/org
@@ -139,7 +139,7 @@ esac
 
 echo "Building OpenSearch for $PLATFORM-$DISTRIBUTION-$ARCHITECTURE"
 
-./gradlew :distribution:$TYPE:$TARGET:assemble -Dbuild.snapshot=$SNAPSHOT -Dbuild.version_qualifier=$QUALIFIER
+./gradlew :distribution:$TYPE:$TARGET:assemble -Dbuild.snapshot=$SNAPSHOT -Dbuild.version_qualifier=$QUALIFIER -Drepos.mavenLocal=true
 
 # Copy artifact to dist folder in bundle build output
 [[ "$SNAPSHOT" == "true" ]] && IDENTIFIER="-SNAPSHOT"
@@ -150,7 +150,7 @@ cp distribution/$TYPE/$TARGET/build/distributions/$ARTIFACT_BUILD_NAME "${OUTPUT
 echo "Building core plugins..."
 mkdir -p "${OUTPUT}/core-plugins"
 cd plugins
-../gradlew assemble -Dbuild.snapshot="$SNAPSHOT" -Dbuild.version_qualifier=$QUALIFIER
+../gradlew assemble -Dbuild.snapshot="$SNAPSHOT" -Dbuild.version_qualifier=$QUALIFIER -Drepos.mavenLocal=true
 cd ..
 for plugin in plugins/*; do
   PLUGIN_NAME=$(basename "$plugin")
