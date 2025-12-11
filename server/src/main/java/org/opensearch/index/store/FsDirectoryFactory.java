@@ -32,6 +32,7 @@
 
 package org.opensearch.index.store;
 
+import org.apache.lucene.misc.store.DirectIODirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FileSwitchDirectory;
@@ -55,6 +56,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.BiPredicate;
 
@@ -97,19 +99,19 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         switch (type) {
             case HYBRIDFS:
                 // Use Lucene defaults
-                final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
-                final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
-                if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
-                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions), nioExtensions);
-                } else {
-                    return primaryDirectory;
-                }
+//                final FSDirectory primaryDirectory = FSDirectory.open(location, lockFactory);
+//                final Set<String> nioExtensions = new HashSet<>(indexSettings.getValue(IndexModule.INDEX_STORE_HYBRID_NIO_EXTENSIONS));
+//                if (primaryDirectory instanceof MMapDirectory mMapDirectory) {
+//                    return new HybridDirectory(lockFactory, setPreload(mMapDirectory, preLoadExtensions), nioExtensions);
+//                } else {
+//                    return primaryDirectory;
+//                }
             case MMAPFS:
-                return setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
+//                return setPreload(new MMapDirectory(location, lockFactory), preLoadExtensions);
             // simplefs was removed in Lucene 9; support for enum is maintained for bwc
             case SIMPLEFS:
             case NIOFS:
-                return new NIOFSDirectory(location, lockFactory);
+                return new DirectIODirectoryWrapper(new NIOFSDirectory(location, lockFactory));
             default:
                 throw new AssertionError("unexpected built-in store type [" + type + "]");
         }
@@ -187,6 +189,22 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         MMapDirectory getDelegate() {
             return delegate;
+        }
+    }
+
+    /**
+     * DirectIO directory implementation
+     * for all operation types e,g; SEARCH, INDEX, MERGE etc
+     * @opensearch.internal
+     */
+    static final class DirectIODirectoryWrapper extends DirectIODirectory {
+        DirectIODirectoryWrapper(FSDirectory delegate) throws IOException {
+            super(delegate);
+        }
+
+        @Override
+        protected boolean useDirectIO(String name, IOContext context, OptionalLong fileLength) {
+            return true;
         }
     }
 }
