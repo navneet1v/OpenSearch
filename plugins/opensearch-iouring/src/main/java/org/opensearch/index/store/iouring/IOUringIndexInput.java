@@ -15,7 +15,8 @@ import org.apache.logging.log4j.Logger;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.lang.foreign.*;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;

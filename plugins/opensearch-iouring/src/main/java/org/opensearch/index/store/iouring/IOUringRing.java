@@ -13,8 +13,10 @@ import org.opensearch.index.store.iouring.ffi.osur_completion_t;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.foreign.*;
-    import java.util.Objects;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.util.Objects;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

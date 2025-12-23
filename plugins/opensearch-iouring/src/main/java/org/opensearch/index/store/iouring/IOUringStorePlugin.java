@@ -8,10 +8,15 @@
 
 package org.opensearch.index.store.iouring;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.Plugin;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 
@@ -36,9 +41,13 @@ public class IOUringStorePlugin extends Plugin implements IndexStorePlugin {
     public static class IOUringDirectoryFactory implements DirectoryFactory {
 
         @Override
-        public Directory newDirectory(IndexSettings indexSettings, Path path)
-            throws IOException {
-            return new IOUringDirectory(path);
+        public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+            return new IOUringDirectory(shardPath.resolveIndex());
+        }
+
+        @Override
+        public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+            return new IOUringDirectory(location, lockFactory);
         }
     }
 }
