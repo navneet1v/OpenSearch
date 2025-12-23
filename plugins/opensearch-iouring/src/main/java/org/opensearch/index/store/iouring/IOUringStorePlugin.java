@@ -36,9 +36,9 @@ public class IOUringStorePlugin extends Plugin implements IndexStorePlugin {
     public static class IOUringDirectoryFactory implements DirectoryFactory {
 
         @Override
-        public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath)
+        public Directory newDirectory(IndexSettings indexSettings, Path path)
             throws IOException {
-            return new IOUringDirectory(shardPath.resolveIndex());
+            return new IOUringDirectory(path);
         }
     }
 }

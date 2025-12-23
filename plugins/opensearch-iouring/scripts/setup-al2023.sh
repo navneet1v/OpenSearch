@@ -135,7 +135,7 @@ else
 
     rm corretto.tar.gz
 
-    log_info "Corretto 22 installed to ${JAVA_INSTALL_DIR} ✓"
+    log_info "Corretto 25 installed to ${JAVA_INSTALL_DIR} ✓"
 fi
 
 # Set up alternatives

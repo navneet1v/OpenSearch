@@ -80,9 +80,9 @@ log_info "Installing to ${INSTALL_DIR}..."
 make install
 
 # Verify installation
-if [[ -f "${INSTALL_DIR}/lib/libopensearch_iouring.so" ]]; then
+if [[ -f "${INSTALL_DIR}/lib64/libopensearch_iouring.so" ]]; then
     log_info "Library built successfully ✓"
-    log_info "  Location: ${INSTALL_DIR}/lib/libopensearch_iouring.so"
+    log_info "  Location: ${INSTALL_DIR}/lib64/libopensearch_iouring.so"
     log_info "  Header:   ${INSTALL_DIR}/include/opensearch_iouring.h"
 else
     log_error "Library not found after installation!"
@@ -92,7 +92,7 @@ fi
 # Copy to resources for JAR packaging
 RESOURCES_DIR="${PROJECT_ROOT}/src/main/resources/native/linux-x86_64"
 mkdir -p "${RESOURCES_DIR}"
-cp "${INSTALL_DIR}/lib/libopensearch_iouring.so" "${RESOURCES_DIR}/"
+cp "${INSTALL_DIR}/lib64/libopensearch_iouring.so" "${RESOURCES_DIR}/"
 log_info "Copied library to resources: ${RESOURCES_DIR}"
 
 echo ""

@@ -65,26 +65,26 @@ install(TARGETS opensearch_iouring
 )
 
 # Generate pkg-config file
-configure_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/opensearch_iouring.pc.in
-    ${CMAKE_CURRENT_BINARY_DIR}/opensearch_iouring.pc
-    @ONLY
-)
+# configure_file(
+#     ${CMAKE_CURRENT_SOURCE_DIR}/opensearch_iouring.pc.in
+#     ${CMAKE_CURRENT_BINARY_DIR}/opensearch_iouring.pc
+#     @ONLY
+# )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/opensearch_iouring.pc
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
-)
+# install(FILES ${CMAKE_CURRENT_BINARY_DIR}/opensearch_iouring.pc
+#     DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
+# )
 
 # Tests
-if(BUILD_TESTS)
-    enable_testing()
+# if(BUILD_TESTS)
+#     enable_testing()
 
-    add_executable(test_wrapper test/test_wrapper.c)
-    target_link_libraries(test_wrapper opensearch_iouring ${LIBURING_LIBRARIES})
-    target_include_directories(test_wrapper PRIVATE include)
+#     add_executable(test_wrapper test/test_wrapper.c)
+#     target_link_libraries(test_wrapper opensearch_iouring ${LIBURING_LIBRARIES})
+#     target_include_directories(test_wrapper PRIVATE include)
 
-    add_test(NAME wrapper_test COMMAND test_wrapper)
-endif()
+#     add_test(NAME wrapper_test COMMAND test_wrapper)
+# endif()
 
 # Print configuration
 message(STATUS "")

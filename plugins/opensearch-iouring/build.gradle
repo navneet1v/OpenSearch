@@ -1,126 +1,270 @@
-import org.apache.tools.ant.types.resources.comparators.Date
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
 
 apply plugin: 'opensearch.opensearchplugin'
-// Plugin metadata
+apply plugin: 'opensearch.testclusters'
+
 opensearchplugin {
-  name = 'opensearch-iouring'
-  description = 'IO-uring based Directory implementation for high-performance I/O'
-  classname = 'org.opensearch.index.store.iouring.IOUringStorePlugin'
-//  licenseFile = rootProject.file('LICENSE.txt')
-//  noticeFile = rootProject.file('NOTICE.txt')
+    name='opensearch-iouring'
+    description='IO-uring based Directory implementation for high-performance I/O'
+    classname='org.opensearch.index.store.iouring.IOUringStorePlugin'
 }
 
-// Java version (25+ required for stable FFM API)
+// Set Java version for this plugin to 22 (where FFM is standard)
 java {
-  sourceCompatibility = JavaVersion.VERSION_25
-  targetCompatibility = JavaVersion.VERSION_25
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
 }
 
-// Source sets
+tasks.withType(JavaCompile).configureEach {
+    options.release = 25
+}
+
+// ============================================================================
+// Find jextract
+// ============================================================================
+def findJextract() {
+    def candidates = [
+        System.getenv('JEXTRACT_HOME') ? "${System.getenv('JEXTRACT_HOME')}/bin/jextract" : null,
+        '/opt/jextract/bin/jextract',
+        '/usr/local/bin/jextract',
+        "${System.getProperty('user.home')}/jextract/bin/jextract"
+    ].findAll { it != null }
+    
+    for (path in candidates) {
+        def f = new File(path)
+        if (f.exists() && f.canExecute()) {
+            return f.absolutePath
+        }
+    }
+    return null
+}
+
+def jextractExecutable = findJextract()
+
+// ============================================================================
+// Source Sets
+// ============================================================================
 sourceSets {
-  main {
-    java {
-      srcDirs = ['src/main/java', 'src/main/generated']
+    main {
+        java {
+            srcDir 'src/main/java'
+            srcDir 'src/main/generated'
+        }
     }
-    resources {
-      srcDirs = ['src/main/resources']
-    }
-  }
-}
-
-repositories {
-  mavenCentral()
 }
 
 dependencies {
-  // OpenSearch dependencies (provided by the platform)
-  compileOnly "org.opensearch:opensearch:${versions.opensearch}"
-
-  // Logging
-  compileOnly 'org.apache.logging.log4j:log4j-api:2.21.1'
-  compileOnly 'org.apache.logging.log4j:log4j-core:2.21.1'
-
-  // Testing
-  testImplementation "org.opensearch.test:framework:${versions.opensearch}"
-  testImplementation 'junit:junit:4.13.2'
-  testImplementation 'org.mockito:mockito-core:5.8.0'
+    testImplementation project(':test:framework')
 }
 
-// Compiler arguments for Panama FFM API
-tasks.withType(JavaCompile).configureEach {
-  options.compilerArgs += [
-    '--enable-preview',
-    '-Xlint:-preview'
-  ]
+
+// ============================================================================
+// Helper: Get native library directory
+// ============================================================================
+def getNativeLibDir() {
+    def libDir = file("${project.projectDir}/dist/native/lib")
+    def lib64Dir = file("${project.projectDir}/dist/native/lib64")
+    return libDir.exists() ? libDir.absolutePath : 
+           lib64Dir.exists() ? lib64Dir.absolutePath : 
+           libDir.absolutePath
 }
 
-// Test configuration
-test {
-  jvmArgs += [
-    '--enable-preview',
-    '--enable-native-access=ALL-UNNAMED',
-    "-Djava.library.path=${project.projectDir}/dist/native/lib"
-  ]
-
-  // Set library path environment
-  environment 'LD_LIBRARY_PATH', "${project.projectDir}/dist/native/lib"
-
-  // Test logging
-  testLogging {
-    events 'passed', 'skipped', 'failed'
-    showStandardStreams = true
-  }
+// ============================================================================
+// Build Native Library
+// ============================================================================
+tasks.register('buildNative', Exec) {
+    description = 'Build the native IO-uring wrapper library'
+    group = 'build'
+    
+    workingDir project.projectDir
+    commandLine 'bash', 'scripts/build_native.sh'
+    
+    inputs.files(fileTree('native/src')).skipWhenEmpty()
+    inputs.files(fileTree('native/include')).skipWhenEmpty()
+    inputs.file('native/CMakeLists.txt')
+    outputs.dir("${project.projectDir}/dist/native")
 }
 
-// Task to build native library
-task buildNative(type: Exec) {
-  workingDir project.projectDir
-  commandLine 'bash', 'scripts/build-native.sh'
-}
-
-// Task to generate bindings
-task generateBindings(type: Exec) {
-  dependsOn buildNative
-  workingDir project.projectDir
-  commandLine 'bash', 'scripts/generate-bindings.sh'
-}
-
-// Make sure bindings are generated before compiling Java
-compileJava.dependsOn generateBindings
-
-// Include native library in the distribution
-distributions {
-  main {
-    contents {
-      from('dist/native/lib') {
-        into 'native'
-        include '*.so'
-      }
+// ============================================================================
+// Generate Java Bindings
+// ============================================================================
+tasks.register('generateBindings', Exec) {
+    description = 'Generate Java bindings using jextract'
+    group = 'build'
+    
+    dependsOn 'buildNative'
+    workingDir project.projectDir
+    
+    if (jextractExecutable) {
+        environment 'JEXTRACT_CMD', jextractExecutable
     }
-  }
+    
+    commandLine 'bash', 'scripts/generate_bindings.sh'
+    
+    inputs.file("${project.projectDir}/native/include/opensearch_iouring.h")
+    inputs.dir("${project.projectDir}/dist/native")
+    outputs.dir("${project.projectDir}/src/main/generated")
+    
+    doFirst {
+        if (!jextractExecutable) {
+            throw new GradleException("jextract not found! Set JEXTRACT_HOME or install to /opt/jextract-22/")
+        }
+    }
 }
 
-// JAR configuration
-jar {
-  from('dist/native/lib') {
-    into 'native/linux-x86_64'
-    include '*.so'
-  }
+// ============================================================================
+// CRITICAL: All tasks that use source directories must depend on generateBindings
+// ============================================================================
 
-  manifest {
-    attributes(
-      'Implementation-Title': 'OpenSearch IO-uring Plugin',
-      'Implementation-Version': project.version,
-      'Built-By': System.getProperty('user.name'),
-      'Built-Date': new Date().format('yyyy-MM-dd HH:mm:ss'),
-      'Enable-Native-Access': 'ALL-UNNAMED'
-    )
-  }
+// Method 1: Explicit list of known tasks
+def tasksNeedingGeneratedSources = [
+    // Compilation
+    'compileJava',
+    'compileTestJava',
+    
+    // Documentation
+    'javadoc',
+    'javadocJar',
+    
+    // Source packaging
+    'sourcesJar',
+    
+    // Code quality
+    'checkstyleMain',
+    'checkstyleTest',
+    'pmdMain',
+    'pmdTest',
+    'spotbugsMain',
+    'spotbugsTest',
+    'spotlessJava',
+    'spotlessJavaCheck',
+    'spotlessJavaApply',
+    
+    // License/Notice
+    'licenseHeaders',
+    'generateNotice',
+    'updateShas',
+    'validateNebulaPom',
+    
+    // Other
+    'classes',
+    'testClasses'
+]
+
+tasksNeedingGeneratedSources.each { taskName ->
+    tasks.matching { it.name == taskName }.configureEach {
+        dependsOn 'generateBindings'
+        mustRunAfter 'generateBindings'
+    }
 }
 
-// Clean task extension
+// Method 2: Catch-all for any Jar task that includes source
+tasks.withType(Jar).configureEach {
+    dependsOn 'generateBindings'
+    mustRunAfter 'generateBindings'
+}
+
+// Method 3: Catch-all for any SourceTask (covers most code analysis tasks)
+tasks.withType(SourceTask).configureEach {
+    if (it.name != 'generateBindings' && it.name != 'buildNative') {
+        dependsOn 'generateBindings'
+        mustRunAfter 'generateBindings'
+    }
+}
+
+// ============================================================================
+// Test Configuration
+// ============================================================================
+tasks.named('test') {
+    dependsOn 'buildNative'
+    
+    jvmArgs '--enable-preview', '--enable-native-access=ALL-UNNAMED'
+    jvmArgs "-Djava.library.path=${getNativeLibDir()}"
+    environment 'LD_LIBRARY_PATH', getNativeLibDir()
+    systemProperty 'tests.security.manager', 'false'
+}
+
+tasks.matching { it.name == 'internalClusterTest' }.configureEach {
+    dependsOn 'buildNative'
+    jvmArgs '--enable-preview', '--enable-native-access=ALL-UNNAMED'
+    systemProperty 'tests.security.manager', 'false'
+}
+
+// ============================================================================
+// JAR & Bundle Configuration
+// ============================================================================
+tasks.named('jar') {
+    dependsOn 'buildNative'
+    
+    from("${project.projectDir}/dist/native/lib") {
+        into 'native/linux-x86_64'
+        include '*.so*'
+    }
+    from("${project.projectDir}/dist/native/lib64") {
+        into 'native/linux-x86_64'
+        include '*.so*'
+    }
+}
+
+tasks.matching { it.name == 'bundlePlugin' }.configureEach {
+    dependsOn 'buildNative'
+    
+    from("${project.projectDir}/dist/native/lib") {
+        into 'native/linux-x86_64'
+        include '*.so*'
+    }
+    from("${project.projectDir}/dist/native/lib64") {
+        into 'native/linux-x86_64'
+        include '*.so*'
+    }
+}
+
+// ============================================================================
+// Disable Incompatible Checks
+// ============================================================================
+['forbiddenApisMain', 'forbiddenApisTest', 'thirdPartyAudit'].each { taskName ->
+    tasks.matching { it.name == taskName }.configureEach {
+        enabled = false
+    }
+}
+
+tasks.matching { it.name == 'licenseHeaders' }.configureEach {
+    excludes = ['**/generated/**', '**/native/build/**']
+}
+
+// ============================================================================
+// Javadoc needs preview flag
+// ============================================================================
+tasks.matching { it.name == 'javadoc' }.configureEach {
+    options {
+        addStringOption('-release', '21')
+        addBooleanOption('-enable-preview', true)
+    }
+}
+
+// ============================================================================
+// Clean
+// ============================================================================
+
+// ============================================================================
+// Clean - Proper Gradle 9.x compatible way
+// ============================================================================
+
+// Store paths at configuration time (not execution time)
+def distDir = layout.projectDirectory.dir('dist')
+def generatedDir = layout.projectDirectory.dir('src/main/generated')
+def nativeBuildDir = layout.projectDirectory.dir('native/build')
+
 clean {
-  delete 'dist'
-  delete 'src/main/generated'
-  delete 'native/build'
+    // Add directories to the clean task's delete set at configuration time
+    delete distDir
+    delete generatedDir
+    delete nativeBuildDir
 }
+

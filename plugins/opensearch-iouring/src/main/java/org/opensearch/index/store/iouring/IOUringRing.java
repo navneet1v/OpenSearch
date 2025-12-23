@@ -8,8 +8,8 @@
 
 package org.opensearch.index.store.iouring;
 
-import org.opensearch.index.store.iouring.native.opensearch_iouring_h;
-import org.opensearch.index.store.iouring.native.osur_completion_t;
+import org.opensearch.index.store.iouring.ffi.opensearch_iouring_h;
+import org.opensearch.index.store.iouring.ffi.osur_completion_t;
 
 import java.io.Closeable;
 import java.io.IOException;
