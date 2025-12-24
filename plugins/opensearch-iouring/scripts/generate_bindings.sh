@@ -59,6 +59,7 @@ log_info "  Package: ${PACKAGE}"
   --include-function "osur_wait_completion" \
   --include-typedef "osur_ring_t" \
   --include-typedef "osur_completion_t" \
+  --include-constant OSUR_RING_DEFAULT \
   "${HEADER_FILE}"
 
 COUNT=$(find "${OUTPUT_DIR}" -name "*.java" | wc -l)

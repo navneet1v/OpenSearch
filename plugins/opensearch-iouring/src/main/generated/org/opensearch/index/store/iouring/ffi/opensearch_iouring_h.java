@@ -24,6 +24,15 @@ public class opensearch_iouring_h extends opensearch_iouring_h$shared {
             .or(SymbolLookup.loaderLookup())
             .or(Linker.nativeLinker().defaultLookup());
 
+    private static final int OSUR_RING_DEFAULT = (int)0L;
+    /**
+     * {@snippet lang=c :
+     * #define OSUR_RING_DEFAULT 0
+     * }
+     */
+    public static int OSUR_RING_DEFAULT() {
+        return OSUR_RING_DEFAULT;
+    }
 
     private static class osur_ring_create {
         public static final FunctionDescriptor DESC = FunctionDescriptor.of(
