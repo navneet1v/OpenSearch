@@ -6,8 +6,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.nio.ByteBuffer;
-import java.nio.file.Path;
 
 import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 

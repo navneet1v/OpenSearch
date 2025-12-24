@@ -1,8 +1,8 @@
 package org.opensearch.index.store.iouring;
 
-import java.lang.foreign.*;
-import java.lang.invoke.*;
-import static java.lang.foreign.ValueLayout.*;
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import static java.lang.foreign.ValueLayout.ADDRESS;
 
 import org.opensearch.index.store.iouring.ffi.opensearch_iouring_h;
 
@@ -17,7 +17,7 @@ public final class IOUringNative {
     public static MemorySegment createRing(int depth) {
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment out = arena.allocate(ADDRESS);
-            int rc = opensearch_iouring_h.osur_ring_create(depth, Osur.OSUR_RING_DEFAULT(), out);
+            int rc = opensearch_iouring_h.osur_ring_create(depth, opensearch_iouring_h.OSUR_RING_DEFAULT(), out);
             if (rc != 0) {
                 throw new IllegalStateException("ring_create failed: " + rc);
             }

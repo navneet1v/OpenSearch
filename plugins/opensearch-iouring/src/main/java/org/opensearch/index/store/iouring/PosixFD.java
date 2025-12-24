@@ -17,7 +17,7 @@ final class PosixFD {
 
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup LIBC =
-            SymbolLookup.systemLookup();
+            SymbolLookup.loaderLookup();
 
     private static final MethodHandle OPEN;
     private static final MethodHandle CLOSE;
