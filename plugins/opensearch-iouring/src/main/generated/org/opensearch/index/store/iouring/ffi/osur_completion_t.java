@@ -31,7 +31,7 @@ public class osur_completion_t {
         opensearch_iouring_h.C_LONG.withName("user_data"),
         opensearch_iouring_h.C_INT.withName("result"),
         opensearch_iouring_h.C_INT.withName("flags")
-    ).withName("$anon$315:9");
+    ).withName("$anon$37:9");
 
     /**
      * The layout of this struct

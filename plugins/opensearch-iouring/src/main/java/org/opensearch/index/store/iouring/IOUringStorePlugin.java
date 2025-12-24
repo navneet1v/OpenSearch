@@ -29,10 +29,7 @@ public class IOUringStorePlugin extends Plugin implements IndexStorePlugin {
 
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
-        return Collections.singletonMap(
-            "io_uring",
-            new IOUringDirectoryFactory()
-        );
+        return Collections.singletonMap("io_uring", new IOUringDirectoryFactory());
     }
 
     /**

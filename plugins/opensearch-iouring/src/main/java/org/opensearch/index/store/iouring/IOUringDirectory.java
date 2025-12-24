@@ -1,231 +1,143 @@
-/*
- * SPDX-License-Identifier: Apache-2.0
- *
- * The OpenSearch Contributors require contributions made to
- * this file be licensed under the Apache-2.0 license or a
- * compatible open source license.
- */
-
 package org.opensearch.index.store.iouring;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.lucene.store.FSDirectory;
-import org.apache.lucene.store.FSLockFactory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.LockFactory;
-import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.*;
+import org.apache.lucene.util.IOUtils;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * A Lucene Directory implementation using IO-uring for read operations.
+ * Lucene Directory backed by io_uring for read operations.
  *
- * <p>This directory provides high-performance asynchronous I/O for index reads
- * using Linux's IO-uring subsystem. Write operations delegate to the standard
- * NIOFSDirectory implementation.</p>
- *
- * <p>Configuration:</p>
- * <pre>{@code
- * PUT /my-index
- * {
- *   "settings": {
- *     "index.store.type": "io_uring"
- *   }
- * }
- * }</pre>
+ * Write operations are delegated to FSDirectory.
  */
-public class IOUringDirectory extends FSDirectory {
+public final class IOUringDirectory extends FSDirectory {
 
-    private static final Logger logger = LogManager.getLogger(IOUringDirectory.class);
-
-    // IO-uring components
-    private final IOUringRing ring;
-    private final IOUringCompletionHandler completionHandler;
-
-    // Fallback for write operations
-    private final NIOFSDirectory fallbackDirectory;
-
-    // Configuration
     private static final int DEFAULT_QUEUE_DEPTH = 256;
 
-    // Whether IO-uring is enabled
-    private final boolean ioUringEnabled;
+    private final IOUringScheduler scheduler;
 
     /**
-     * Create a new IOUringDirectory with default settings.
+     * Track open file descriptors per file name.
+     * Lucene IndexInput instances are thread-confined,
+     * but Directory is not.
      */
+    private final Map<String, FileHandle> openFiles =
+            new ConcurrentHashMap<>();
+
+    /* ============================
+     * Constructors
+     * ============================ */
+
     public IOUringDirectory(Path path) throws IOException {
-        this(path, FSLockFactory.getDefault(), DEFAULT_QUEUE_DEPTH);
+        this(path, FSLockFactory.getDefault());
     }
 
-    /**
-     * Create a new IOUringDirectory with custom lock factory.
-     */
-    public IOUringDirectory(Path path, LockFactory lockFactory) throws IOException {
-        this(path, lockFactory, DEFAULT_QUEUE_DEPTH);
-    }
-
-    /**
-     * Create a new IOUringDirectory with custom queue depth.
-     */
-    public IOUringDirectory(Path path, LockFactory lockFactory, int queueDepth) throws IOException {
+    public IOUringDirectory(Path path, LockFactory lockFactory)
+            throws IOException {
         super(path, lockFactory);
 
-        // Create fallback directory
-        this.fallbackDirectory = new NIOFSDirectory(path, lockFactory);
+        if (!Files.isDirectory(path)) {
+            throw new IOException("Path is not a directory: " + path);
+        }
 
-        // Try to initialize IO-uring
-        IOUringRing tempRing = null;
-        IOUringCompletionHandler tempHandler = null;
-        boolean enabled = false;
+        this.scheduler = new IOUringScheduler(DEFAULT_QUEUE_DEPTH);
+    }
 
-        if (IOUringRing.isAvailable()) {
+    /* ============================
+     * Core Lucene Overrides
+     * ============================ */
+
+    @Override
+    public IndexInput openInput(String name, IOContext context)
+            throws IOException {
+
+        ensureOpen();
+
+        FileHandle handle = openFiles.computeIfAbsent(name, n -> {
             try {
-                tempRing = new IOUringRing(queueDepth);
-                tempHandler = new IOUringCompletionHandler(tempRing);
-                enabled = true;
-                logger.info("IOUringDirectory initialized: path={}, queueDepth={}",
-                    path, queueDepth);
-            } catch (Exception e) {
-                logger.warn("Failed to initialize IO-uring, falling back to NIO: {}",
-                    e.getMessage());
-                if (tempRing != null) {
-                    try { tempRing.close(); } catch (Exception ignored) {}
-                }
+                return FileHandle.open(directory.resolve(n));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-        } else {
-            logger.info("IO-uring not available ({}), using NIO fallback",
-                IOUringRing.getUnavailabilityReason());
-        }
+        });
 
-        this.ring = tempRing;
-        this.completionHandler = tempHandler;
-        this.ioUringEnabled = enabled;
-    }
-
-    /**
-     * Check if IO-uring is enabled for this directory.
-     */
-    public boolean isIOUringEnabled() {
-        return ioUringEnabled;
+        return new IOUringIndexInput(
+                name,
+                scheduler,
+                handle.fd(),
+                handle.length()
+        );
     }
 
     @Override
-    public IndexInput openInput(String name, IOContext context) throws IOException {
-        ensureOpen();
+    public void close() throws IOException {
+        // Close scheduler first so no new IO can be submitted
+        scheduler.close();
 
-        if (!ioUringEnabled) {
-            return fallbackDirectory.openInput(name, context);
-        }
-
-        Path filePath = getDirectory().resolve(name);
-
-        try {
-            return new IOUringIndexInput(
-                "IOUringIndexInput(" + name + ")",
-                filePath,
-                ring,
-                completionHandler
-            );
-        } catch (Exception e) {
-            logger.warn("Failed to open {} with IO-uring, falling back to NIO: {}",
-                name, e.getMessage());
-            return fallbackDirectory.openInput(name, context);
-        }
-    }
-
-    @Override
-    public IndexOutput createOutput(String name, IOContext context) throws IOException {
-        ensureOpen();
-        // Delegate writes to fallback (IO-uring writes are future work)
-        return fallbackDirectory.createOutput(name, context);
-    }
-
-    @Override
-    public IndexOutput createTempOutput(String prefix, String suffix, IOContext context)
-        throws IOException {
-        ensureOpen();
-        return fallbackDirectory.createTempOutput(prefix, suffix, context);
-    }
-
-    @Override
-    public String[] listAll() throws IOException {
-        ensureOpen();
-        return fallbackDirectory.listAll();
-    }
-
-    @Override
-    public void deleteFile(String name) throws IOException {
-        ensureOpen();
-        fallbackDirectory.deleteFile(name);
-    }
-
-    @Override
-    public long fileLength(String name) throws IOException {
-        ensureOpen();
-        return fallbackDirectory.fileLength(name);
-    }
-
-    @Override
-    public void sync(Collection<String> names) throws IOException {
-        ensureOpen();
-        fallbackDirectory.sync(names);
-    }
-
-    @Override
-    public void syncMetaData() throws IOException {
-        ensureOpen();
-        fallbackDirectory.syncMetaData();
-    }
-
-    @Override
-    public void rename(String source, String dest) throws IOException {
-        ensureOpen();
-        fallbackDirectory.rename(source, dest);
-    }
-
-    @Override
-    public Set<String> getPendingDeletions() throws IOException {
-        return fallbackDirectory.getPendingDeletions();
-    }
-
-    @Override
-    public synchronized void close() throws IOException {
-        if (completionHandler != null) {
-            completionHandler.close();
-        }
-
-        if (ring != null) {
-            ring.close();
-        }
-
-        fallbackDirectory.close();
-
-        logger.info("IOUringDirectory closed: {}", getDirectory());
+        // Close all file descriptors
+        IOUtils.close(openFiles.values());
+        openFiles.clear();
 
         super.close();
     }
 
-    /**
-     * Get statistics about the IO-uring completion handler.
-     */
-    public String getStats() {
-        if (!ioUringEnabled || completionHandler == null) {
-            return "IO-uring disabled";
+    /* ============================
+     * Unsupported / Delegated Ops
+     * ============================ */
+
+    @Override
+    public IndexOutput createOutput(
+            String name,
+            IOContext context
+    ) throws IOException {
+        // Writes go through standard FSDirectory
+        return super.createOutput(name, context);
+    }
+
+    @Override
+    public IndexOutput createTempOutput(
+            String prefix,
+            String suffix,
+            IOContext context
+    ) throws IOException {
+        return super.createTempOutput(prefix, suffix, context);
+    }
+
+    /* ============================
+     * Internal File Handle
+     * ============================ */
+
+    private static final class FileHandle implements AutoCloseable {
+
+        private final int fd;
+        private final long length;
+
+        private FileHandle(int fd, long length) {
+            this.fd = fd;
+            this.length = length;
         }
 
-        return String.format(
-            "completed=%d, errors=%d, pending=%d, queueDepth=%d",
-            completionHandler.getCompletedCount(),
-            completionHandler.getErrorCount(),
-            completionHandler.getPendingCount(),
-            ring.getQueueDepth()
-        );
+        static FileHandle open(Path path) throws IOException {
+            int fd = PosixFD.openReadOnly(path);
+            long length = Files.size(path);
+            return new FileHandle(fd, length);
+        }
+
+        int fd() {
+            return fd;
+        }
+
+        long length() {
+            return length;
+        }
+
+        @Override
+        public void close() throws IOException {
+            PosixFD.close(fd);
+        }
     }
 }
