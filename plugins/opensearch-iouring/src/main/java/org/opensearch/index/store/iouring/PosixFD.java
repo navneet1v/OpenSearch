@@ -16,8 +16,7 @@ import static java.lang.foreign.ValueLayout.*;
 final class PosixFD {
 
     private static final Linker LINKER = Linker.nativeLinker();
-    private static final SymbolLookup LIBC =
-            SymbolLookup.loaderLookup();
+    private static final SymbolLookup LIBC = LINKER.defaultLookup();
 
     private static final MethodHandle OPEN;
     private static final MethodHandle CLOSE;

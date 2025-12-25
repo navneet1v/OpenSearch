@@ -29,6 +29,7 @@ public class IOUringStorePlugin extends Plugin implements IndexStorePlugin {
 
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
+        System.out.println(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>> " + System.getProperty("java.library.path"));
         return Collections.singletonMap("io_uring", new IOUringDirectoryFactory());
     }
 

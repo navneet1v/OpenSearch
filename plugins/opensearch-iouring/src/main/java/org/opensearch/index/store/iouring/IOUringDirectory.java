@@ -9,6 +9,7 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.util.IOUtils;
 
 import java.io.IOException;
+import java.io.Closeable;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -117,7 +118,7 @@ public final class IOUringDirectory extends FSDirectory {
      * Internal File Handle
      * ============================ */
 
-    private static final class FileHandle implements AutoCloseable {
+    private static final class FileHandle implements Closeable {
 
         private final int fd;
         private final long length;

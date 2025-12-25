@@ -132,7 +132,7 @@ final class IOUringScheduler implements AutoCloseable {
                             future.complete(result);
                         } else {
                             future.completeExceptionally(
-                                    new IOException("IO failed: " + osur_strerror(result))
+                                    new IOException("IO failed: " + (-result))
                             );
                         }
                     }
@@ -171,7 +171,7 @@ final class IOUringScheduler implements AutoCloseable {
             int rc = osur_ring_create(depth, OSUR_RING_DEFAULT(), out);
             if (rc != 0) {
                 throw new IllegalStateException(
-                        "osur_ring_create failed: " + osur_strerror(rc));
+                        "osur_ring_create failed: " + (-rc));
             }
             return out.get(ADDRESS, 0);
         }
