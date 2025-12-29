@@ -92,6 +92,7 @@ final class IOUringScheduler implements AutoCloseable {
         }
 
         try {
+            inflight.remove(requestId);
             return future.get();
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
@@ -125,7 +126,7 @@ final class IOUringScheduler implements AutoCloseable {
                     int result = osur_completion_t.result(cqe);
 
                     CompletableFuture<Integer> future =
-                            inflight.remove(id);
+                            inflight.get(id);
 
                     if (future != null) {
                         if (result >= 0) {

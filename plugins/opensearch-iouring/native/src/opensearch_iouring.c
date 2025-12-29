@@ -44,6 +44,7 @@ int osur_submit_read(osur_ring_t* ring,
 
     io_uring_prep_read(sqe, fd, buffer, length, offset);
     io_uring_sqe_set_data(sqe, (void*) request_id);
+    osur_submit(ring);
     return 0;
 }
 
