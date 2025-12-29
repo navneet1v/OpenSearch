@@ -17,6 +17,7 @@ final class IOUringIndexInput extends IndexInput {
     private final IOUringScheduler scheduler;
     private final int fd;
     private final long length;
+    private boolean isClone=false;
 
     private long position;
 
@@ -47,7 +48,7 @@ final class IOUringIndexInput extends IndexInput {
 
         try (Arena arena = Arena.ofConfined()) {
             while (remaining > 0) {
-                int chunk = Math.min(remaining, 128 * 1024); // 128KB max
+                int chunk = Math.min(remaining, 4 * 1024); // 4KB max
 
                 MemorySegment buffer =
                         arena.allocate(JAVA_BYTE, chunk);
@@ -119,7 +120,20 @@ final class IOUringIndexInput extends IndexInput {
     }
 
     @Override
+    public IndexInput clone() {
+        IOUringIndexInput clone = (IOUringIndexInput) super.clone();
+        clone.isClone = true;
+        return clone;
+    }
+
+    @Override
     public void close() {
-        // fd lifecycle managed by Directory
+        if (!isClone) {
+            try {
+                PosixFD.close(fd);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 }

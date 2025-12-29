@@ -57,7 +57,7 @@ final class IOUringScheduler implements AutoCloseable {
             int length,
             long offset
     ) {
-        Objects.requireNonNull(buffer, "buffer");
+        Objects.requireNonNull(buffer, "buffer can't be null");
 
         if (!running.get()) {
             throw new RejectedExecutionException("Scheduler is closed");
