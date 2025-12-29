@@ -23,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class IOUringDirectory extends FSDirectory {
 
-    private static final int DEFAULT_QUEUE_DEPTH = 256;
+    private static final int DEFAULT_QUEUE_DEPTH = 1024;
 
     private final IOUringScheduler scheduler;
 
@@ -55,7 +55,7 @@ public final class IOUringDirectory extends FSDirectory {
     }
 
     /* ============================
-     * Core Lucene Overrides
+     * Core Lucene Override
      * ============================ */
 
     @Override
@@ -63,17 +63,16 @@ public final class IOUringDirectory extends FSDirectory {
             throws IOException {
 
         ensureOpen();
-
         FileHandle handle = openFiles.computeIfAbsent(name, n -> {
             try {
-                return FileHandle.open(directory.resolve(n));
+                return FileHandle.open(getDirectory().resolve(n));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         });
 
         return new IOUringIndexInput(
-                name,
+                "IOUringIndexInput(path=\"" + getDirectory().resolve(name) + "\")",
                 scheduler,
                 handle.fd(),
                 handle.length()
@@ -92,27 +91,6 @@ public final class IOUringDirectory extends FSDirectory {
         super.close();
     }
 
-    /* ============================
-     * Unsupported / Delegated Ops
-     * ============================ */
-
-    @Override
-    public IndexOutput createOutput(
-            String name,
-            IOContext context
-    ) throws IOException {
-        // Writes go through standard FSDirectory
-        return super.createOutput(name, context);
-    }
-
-    @Override
-    public IndexOutput createTempOutput(
-            String prefix,
-            String suffix,
-            IOContext context
-    ) throws IOException {
-        return super.createTempOutput(prefix, suffix, context);
-    }
 
     /* ============================
      * Internal File Handle
