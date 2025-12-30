@@ -5,7 +5,9 @@ import org.apache.lucene.store.IndexInput;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 
 /**
@@ -45,23 +47,47 @@ final class IOUringIndexInput extends BufferedIndexInput {
         int toReadBytes = b.remaining();
         int bytesRead = 0;
         long reqId;
-        while (toReadBytes > 0) {
-            int chunk = Math.min(toReadBytes, getBufferSize());
-            b.limit(b.position() + chunk);
-            MemorySegment buffer = MemorySegment.ofBuffer(b);
-            reqId = scheduler.submitRead(
+        try (Arena arena = Arena.ofConfined()) {
+            while (toReadBytes > 0) {
+                int chunk = Math.min(toReadBytes, getBufferSize());
+                b.limit(b.position() + chunk);
+                MemorySegment buffer = arena.allocate(chunk, getBufferSize());
+                reqId = scheduler.submitRead(
                     fd,
                     buffer,
                     chunk,
                     pos
-            );
-            bytesRead = scheduler.waitForCompletion(reqId);
-            if (bytesRead <= 0) {
-                throw new EOFException("Unexpected EOF");
+                );
+                bytesRead = scheduler.waitForCompletion(reqId);
+                if (bytesRead <= 0) {
+                    throw new EOFException("Unexpected EOF");
+                }
+                copyNativeToByteBuffer(buffer, bytesRead, b);
+                toReadBytes -= bytesRead;
+                pos += bytesRead;
             }
-            toReadBytes -= bytesRead;
-            pos += bytesRead;
         }
+    }
+
+    /**
+     * Copy data from native MemorySegment to ByteBuffer.
+     * Handles both heap and direct ByteBuffers.
+     */
+    private void copyNativeToByteBuffer(MemorySegment source,
+                                        int length,
+                                        ByteBuffer dest) {
+        // Create a segment view of the destination buffer
+        // Works for both heap and direct ByteBuffers
+        MemorySegment destSegment = MemorySegment.ofBuffer(dest);
+
+        // Copy from native source to destination
+        // MemorySegment.copy handles heap vs native destination transparently
+        MemorySegment.copy(
+            source, 0,              // source segment, source offset
+            destSegment, 0,         // dest segment, dest offset (relative to buffer position)
+            length                  // number of bytes
+        );
+        dest.position(dest.position() + length);
     }
 
     @Override
