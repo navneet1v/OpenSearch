@@ -1,25 +1,24 @@
 package org.opensearch.index.store.iouring;
 
+import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IndexInput;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
+import java.nio.ByteBuffer;
 
 /**
  * Synchronous Lucene IndexInput backed by async io_uring.
  */
-final class IOUringIndexInput extends IndexInput {
+final class IOUringIndexInput extends BufferedIndexInput {
 
     private final IOUringScheduler scheduler;
     private final int fd;
     private final long length;
     private boolean isClone=false;
 
-    private long position;
+    private long offset;
 
     IOUringIndexInput(
             String resourceDesc,
@@ -31,73 +30,48 @@ final class IOUringIndexInput extends IndexInput {
         this.scheduler = scheduler;
         this.fd = fd;
         this.length = length;
-        this.position = 0;
+        this.offset = 0;
     }
 
     @Override
-    public void readBytes(byte[] b, int offset, int len)
-            throws IOException {
+    protected void readInternal(ByteBuffer b) throws IOException {
+        long pos = getFilePointer() + offset;
 
-        if (position + len > length) {
+        if (pos + b.remaining() > length) {
             throw new EOFException(
-                    "Read past EOF: pos=" + position + " len=" + len);
+                    "Read past EOF: pos=" + pos + " len=" + b.remaining());
         }
 
-        int remaining = len;
-        int dstOffset = offset;
-
-        try (Arena arena = Arena.ofConfined()) {
-            while (remaining > 0) {
-                int chunk = Math.min(remaining, 4 * 1024); // 4KB max
-
-                MemorySegment buffer =
-                        arena.allocate(JAVA_BYTE, chunk);
-
-                long reqId = scheduler.submitRead(
-                        fd,
-                        buffer,
-                        chunk,
-                        position
-                );
-
-                int bytesRead = scheduler.waitForCompletion(reqId);
-                if (bytesRead <= 0) {
-                    throw new EOFException("Unexpected EOF");
-                }
-
-                buffer.asByteBuffer()
-                        .get(b, dstOffset, bytesRead);
-
-                position += bytesRead;
-                dstOffset += bytesRead;
-                remaining -= bytesRead;
+        int toReadBytes = b.remaining();
+        int bytesRead = 0;
+        long reqId;
+        while (toReadBytes > 0) {
+            int chunk = Math.min(toReadBytes, getBufferSize());
+            b.limit(b.position() + chunk);
+            MemorySegment buffer = MemorySegment.ofBuffer(b);
+            reqId = scheduler.submitRead(
+                    fd,
+                    buffer,
+                    chunk,
+                    pos
+            );
+            bytesRead = scheduler.waitForCompletion(reqId);
+            if (bytesRead <= 0) {
+                throw new EOFException("Unexpected EOF");
             }
+            toReadBytes -= bytesRead;
+            pos += bytesRead;
         }
     }
 
     @Override
-    public byte readByte() throws IOException {
-        byte[] one = new byte[1];
-        readBytes(one, 0, 1);
-        return one[0];
-    }
+    protected void seekInternal(long pos) throws IOException {
 
-    @Override
-    public long getFilePointer() {
-        return position;
-    }
-
-    @Override
-    public void seek(long pos) {
-        if (pos < 0 || pos > length) {
-            throw new IllegalArgumentException("Invalid seek: " + pos);
-        }
-        this.position = pos;
     }
 
     @Override
     public long length() {
-        return length;
+        return length - offset;
     }
 
     @Override
@@ -120,7 +94,7 @@ final class IOUringIndexInput extends IndexInput {
     }
 
     @Override
-    public IndexInput clone() {
+    public BufferedIndexInput clone() {
         IOUringIndexInput clone = (IOUringIndexInput) super.clone();
         clone.isClone = true;
         return clone;
