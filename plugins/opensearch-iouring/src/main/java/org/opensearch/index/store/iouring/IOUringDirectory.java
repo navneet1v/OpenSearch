@@ -5,15 +5,11 @@ import org.apache.lucene.store.FSLockFactory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.LockFactory;
-import org.apache.lucene.util.IOUtils;
 
 import java.io.IOException;
 import java.io.Closeable;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Lucene Directory backed by io_uring for read operations.
@@ -23,16 +19,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class IOUringDirectory extends FSDirectory {
 
     private static final int DEFAULT_QUEUE_DEPTH = 1024;
-
-    private final IOUringScheduler scheduler;
-
-    /**
-     * Track open file descriptors per file name.
-     * Lucene IndexInput instances are thread-confined,
-     * but Directory is not.
-     */
-    private final Map<String, FileHandle> openFiles =
-            new ConcurrentHashMap<>();
 
     /* ============================
      * Constructors
@@ -49,8 +35,6 @@ public final class IOUringDirectory extends FSDirectory {
         if (!Files.isDirectory(path)) {
             throw new IOException("Path is not a directory: " + path);
         }
-
-        this.scheduler = new IOUringScheduler(DEFAULT_QUEUE_DEPTH);
     }
 
     /* ============================
@@ -62,32 +46,14 @@ public final class IOUringDirectory extends FSDirectory {
             throws IOException {
 
         ensureOpen();
-        FileHandle handle = openFiles.computeIfAbsent(name, n -> {
-            try {
-                return FileHandle.open(getDirectory().resolve(n));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
+        FileHandle handle = FileHandle.open(getDirectory().resolve(name));
 
         return new IOUringIndexInput(
                 "IOUringIndexInput(path=\"" + getDirectory().resolve(name) + "\")",
-                scheduler,
+            new IOUringScheduler(DEFAULT_QUEUE_DEPTH),
                 handle.fd(),
                 handle.length()
         );
-    }
-
-    @Override
-    public void close() throws IOException {
-        // Close scheduler first so no new IO can be submitted
-        scheduler.close();
-
-        // Close all file descriptors
-        IOUtils.close(openFiles.values());
-        openFiles.clear();
-
-        super.close();
     }
 
 

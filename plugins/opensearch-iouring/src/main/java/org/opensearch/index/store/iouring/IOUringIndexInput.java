@@ -7,7 +7,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.ValueLayout;
 import java.nio.ByteBuffer;
 
 /**
@@ -49,6 +48,7 @@ final class IOUringIndexInput extends BufferedIndexInput {
         long reqId;
         try (Arena arena = Arena.ofConfined()) {
             while (toReadBytes > 0) {
+                System.out.println("readInternal: " + toReadBytes);
                 int chunk = Math.min(toReadBytes, getBufferSize());
                 b.limit(b.position() + chunk);
                 MemorySegment buffer = arena.allocate(chunk, getBufferSize());
@@ -113,7 +113,7 @@ final class IOUringIndexInput extends BufferedIndexInput {
                         desc,
                         scheduler,
                         fd,
-                        offset + sliceLength
+                        sliceLength
                 );
         slice.seek(offset);
         return slice;
@@ -131,6 +131,7 @@ final class IOUringIndexInput extends BufferedIndexInput {
         if (!isClone) {
             try {
                 PosixFD.close(fd);
+                scheduler.close();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

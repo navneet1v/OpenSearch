@@ -11,8 +11,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -36,6 +36,9 @@ final class IOUringScheduler implements AutoCloseable {
     private final AtomicLong requestIds = new AtomicLong(1);
     private final ConcurrentHashMap<Long, CompletableFuture<Integer>> inflight =
             new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Long, Boolean> processed =
+            new ConcurrentHashMap<>();
+    private final Arena sharedArena = Arena.ofShared();
 
     IOUringScheduler(int queueDepth) {
         this.ring = createRing(queueDepth);
@@ -66,6 +69,7 @@ final class IOUringScheduler implements AutoCloseable {
         long id = requestIds.getAndIncrement();
         CompletableFuture<Integer> future = new CompletableFuture<>();
         inflight.put(id, future);
+        processed.put(id, false);
 
         int rc = osur_submit_read(
                 ring,
@@ -80,7 +84,6 @@ final class IOUringScheduler implements AutoCloseable {
             inflight.remove(id);
             throw new IllegalStateException("osur_submit_read failed: " + rc);
         }
-
         osur_submit(ring);
         return id;
     }
@@ -92,16 +95,22 @@ final class IOUringScheduler implements AutoCloseable {
         }
 
         try {
-            inflight.remove(requestId);
-            return future.get();
+            int result = future.get();
+            if (processed.containsKey(requestId)) {
+                inflight.remove(requestId);
+            } else {
+                processed.put(requestId, true);
+            }
+            return result;
         } catch (ExecutionException e) {
+            inflight.remove(requestId);
             Throwable cause = e.getCause();
             if (cause instanceof IOException io) {
                 throw io;
             }
             throw new IOException(cause);
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+            inflight.remove(requestId);
             throw new IOException("Interrupted while waiting for IO", e);
         }
     }
@@ -137,6 +146,12 @@ final class IOUringScheduler implements AutoCloseable {
                             );
                         }
                     }
+
+                    if (processed.containsKey(id)) {
+                        inflight.remove(id);
+                    } else {
+                        processed.put(id, true);
+                    }
                 }
             }
         });
@@ -160,21 +175,20 @@ final class IOUringScheduler implements AutoCloseable {
         inflight.clear();
 
         osur_ring_destroy(ring);
+        sharedArena.close();
     }
 
     /* ============================
      * Native helpers
      * ============================ */
 
-    private static MemorySegment createRing(int depth) {
-        try (Arena arena = Arena.ofConfined()) {
-            MemorySegment out = arena.allocate(ADDRESS);
-            int rc = osur_ring_create(depth, OSUR_RING_DEFAULT(), out);
-            if (rc != 0) {
-                throw new IllegalStateException(
-                        "osur_ring_create failed: " + (-rc));
-            }
-            return out.get(ADDRESS, 0);
+    private MemorySegment createRing(int depth) {
+        MemorySegment out = sharedArena.allocate(ADDRESS);
+        int rc = osur_ring_create(depth, OSUR_RING_DEFAULT(), out);
+        if (rc != 0) {
+            throw new IllegalStateException(
+                    "osur_ring_create failed: " + (-rc));
         }
+        return out.get(ADDRESS, 0);
     }
 }
