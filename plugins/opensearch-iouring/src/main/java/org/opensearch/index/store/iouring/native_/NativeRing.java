@@ -325,7 +325,7 @@ public final class NativeRing implements AutoCloseable {
      * <p>After processing, caller must call {@link #advanceCq(int)} with the
      * returned count to mark completions as consumed.
      *
-     * @param output   Array to fill with [userData, result] pairs (size >= maxCount * 2)
+     * @param output   Array to fill with [userData, result] pairs (size must be at least maxCount * 2)
      * @param maxCount Maximum completions to retrieve (capped at 256)
      * @return Number of completions retrieved, or negative errno on failure
      * @throws IllegalStateException    if not initialized or closed

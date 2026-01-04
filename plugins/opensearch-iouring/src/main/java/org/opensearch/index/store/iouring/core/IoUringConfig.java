@@ -276,7 +276,7 @@ public final class IoUringConfig {
          *
          * @param ringSize Ring size (must be positive)
          * @return this builder
-         * @throws IllegalArgumentException if ringSize <= 0
+         * @throws IllegalArgumentException if ringSize is not positive
          */
         public Builder ringSize(int ringSize) {
             if (ringSize <= 0) {
@@ -336,7 +336,7 @@ public final class IoUringConfig {
          *
          * @param timeoutMs Shutdown timeout (must be positive)
          * @return this builder
-         * @throws IllegalArgumentException if timeoutMs <= 0
+         * @throws IllegalArgumentException if timeoutMs is not positive
          */
         public Builder shutdownTimeoutMs(long timeoutMs) {
             if (timeoutMs <= 0) {
@@ -351,7 +351,7 @@ public final class IoUringConfig {
          *
          * @param nanos Initial delay in nanoseconds (must be non-negative)
          * @return this builder
-         * @throws IllegalArgumentException if nanos < 0
+         * @throws IllegalArgumentException if nanos is negative
          */
         public Builder pollBackoffInitialNs(long nanos) {
             if (nanos < 0) {
@@ -367,7 +367,7 @@ public final class IoUringConfig {
          *
          * @param nanos Maximum delay in nanoseconds (must be non-negative)
          * @return this builder
-         * @throws IllegalArgumentException if nanos < 0
+         * @throws IllegalArgumentException if nanos is negative
          */
         public Builder pollBackoffMaxNs(long nanos) {
             if (nanos < 0) {
@@ -383,7 +383,7 @@ public final class IoUringConfig {
          *
          * @param limit Retry limit (must be non-negative)
          * @return this builder
-         * @throws IllegalArgumentException if limit < 0
+         * @throws IllegalArgumentException if limit is negative
          */
         public Builder pollBackoffRetryLimit(int limit) {
             if (limit < 0) {

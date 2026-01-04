@@ -140,7 +140,7 @@ public final class BufferPool {
      * </ul>
      *
      * @param minSize Minimum required size in bytes
-     * @return Direct ByteBuffer with capacity >= minSize
+     * @return Direct ByteBuffer with capacity at least minSize
      * @throws IllegalArgumentException if minSize is negative
      */
     public ByteBuffer acquire(int minSize) {

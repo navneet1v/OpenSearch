@@ -37,16 +37,16 @@ import java.util.function.Consumer;
  *   <li>Can be explicitly shut down via {@link #shutdown()}</li>
  * </ul>
  *
- * <p>Example usage:
- * <pre>{@code
+ * Example usage:
+ * <pre>
  * IoUringRing ring = IoUringRing.getInstance();
  *
- * CompletableFuture<Integer> future = ring.submit(sqe -> {
+ * CompletableFuture future = ring.submit(sqe -&gt; {
  *     SqeUtils.prepareRead(sqe, fd, bufferAddr, length, offset);
  * });
  *
  * int bytesRead = future.join();
- * }</pre>
+ * </pre>
  */
 public final class IoUringRing {
 
