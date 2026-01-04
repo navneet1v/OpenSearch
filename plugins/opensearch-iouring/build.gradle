@@ -106,8 +106,8 @@ tasks.matching { it.name == 'licenseHeaders' }.configureEach {
 // ============================================================================
 // JMH Benchmark Configuration
 // ============================================================================
-tasks.register('jmh', JavaExec) {
-    dependsOn 'jmhClasses'
+tasks.register('jmhBench', JavaExec) {
+    dependsOn 'jmhBenchClasses'
     group = 'benchmark'
     description = 'Run JMH benchmarks'
 
@@ -121,8 +121,8 @@ tasks.register('jmh', JavaExec) {
     args = ['-f', '1', '-wi', '3', '-i', '5', 'org.opensearch.index.store.iouring.FileChannelBenchmark']
 }
 
-tasks.register('jmhClasses', JavaCompile) {
-    dependsOn 'generateBindings', 'classes'
+tasks.register('jmhBenchClasses', JavaCompile) {
+    dependsOn 'classes'
     source = sourceSets.jmh.java
     classpath = sourceSets.jmh.compileClasspath
     destinationDirectory = sourceSets.jmh.java.destinationDirectory
