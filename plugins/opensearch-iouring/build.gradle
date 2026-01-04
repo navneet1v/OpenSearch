@@ -8,6 +8,7 @@
 
 apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.testclusters'
+apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
     name='opensearch-iouring'
@@ -35,7 +36,7 @@ def findJextract() {
         '/usr/local/bin/jextract',
         "${System.getProperty('user.home')}/jextract/bin/jextract"
     ].findAll { it != null }
-    
+
     for (path in candidates) {
         def f = new File(path)
         if (f.exists() && f.canExecute()) {
@@ -57,11 +58,18 @@ sourceSets {
             srcDir 'src/main/generated'
         }
     }
+    jmh {
+        java {
+            srcDir 'src/jmh/java'
+        }
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
 }
 
 // Make all tasks that depend on sources wait for generateBindings
 tasks.configureEach { task ->
-    if (task.name != 'generateBindings' && 
+    if (task.name != 'generateBindings' &&
         task.name != 'clean' &&
         !task.name.startsWith('delete') &&
         task.name != "buildNative") {
@@ -71,6 +79,10 @@ tasks.configureEach { task ->
 
 dependencies {
     testImplementation project(':test:framework')
+    
+    // JMH dependencies
+    jmhImplementation 'org.openjdk.jmh:jmh-core:1.37'
+    jmhAnnotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.37'
 }
 
 
@@ -80,8 +92,8 @@ dependencies {
 def getNativeLibDir() {
     def libDir = file("${project.projectDir}/dist/native/lib")
     def lib64Dir = file("${project.projectDir}/dist/native/lib64")
-    return libDir.exists() ? libDir.absolutePath : 
-           lib64Dir.exists() ? lib64Dir.absolutePath : 
+    return libDir.exists() ? libDir.absolutePath :
+           lib64Dir.exists() ? lib64Dir.absolutePath :
            libDir.absolutePath
 }
 
@@ -91,10 +103,10 @@ def getNativeLibDir() {
 tasks.register('buildNative', Exec) {
     description = 'Build the native IO-uring wrapper library'
     group = 'build'
-    
+
     workingDir project.projectDir
     commandLine 'bash', 'scripts/build_native.sh'
-    
+
     inputs.files(fileTree('native/src')).skipWhenEmpty()
     inputs.files(fileTree('native/include')).skipWhenEmpty()
     inputs.file('native/CMakeLists.txt')
@@ -107,20 +119,20 @@ tasks.register('buildNative', Exec) {
 tasks.register('generateBindings', Exec) {
     description = 'Generate Java bindings using jextract'
     group = 'build'
-    
+
     dependsOn 'buildNative'
     workingDir project.projectDir
-    
+
     if (jextractExecutable) {
         environment 'JEXTRACT_CMD', jextractExecutable
     }
-    
+
     commandLine 'bash', 'scripts/generate_bindings.sh'
-    
+
     inputs.file("${project.projectDir}/native/include/opensearch_iouring.h")
     inputs.dir("${project.projectDir}/dist/native")
     outputs.dir("${project.projectDir}/src/main/generated")
-    
+
     doFirst {
         if (!jextractExecutable) {
             throw new GradleException("jextract not found! Set JEXTRACT_HOME or install to /opt/jextract-22/")
@@ -137,14 +149,14 @@ def tasksNeedingGeneratedSources = [
     // Compilation
     'compileJava',
     'compileTestJava',
-    
+
     // Documentation
     'javadoc',
     'javadocJar',
-    
+
     // Source packaging
     'sourcesJar',
-    
+
     // Code quality
     'checkstyleMain',
     'checkstyleTest',
@@ -155,13 +167,13 @@ def tasksNeedingGeneratedSources = [
     'spotlessJava',
     'spotlessJavaCheck',
     'spotlessJavaApply',
-    
+
     // License/Notice
     'licenseHeaders',
     'generateNotice',
     'updateShas',
     'validateNebulaPom',
-    
+
     // Other
     'classes',
     'testClasses'
@@ -202,7 +214,7 @@ tasks.named('sourcesJar').configure {
 // ============================================================================
 tasks.named('test') {
     dependsOn 'buildNative'
-    
+
     jvmArgs '--enable-preview', '--enable-native-access=ALL-UNNAMED'
     jvmArgs "-Djava.library.path=${getNativeLibDir()}"
     environment 'LD_LIBRARY_PATH', getNativeLibDir()
@@ -220,12 +232,12 @@ tasks.matching { it.name == 'internalClusterTest' }.configureEach {
 // ============================================================================
 tasks.named('jar') {
     dependsOn 'buildNative'
-    
+
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    
+
     // Only copy from the directory that exists
     def nativeLibDir = file('dist/native/lib').exists() ? 'dist/native/lib' : 'dist/native/lib64'
-    
+
     from(nativeLibDir) {
         into 'native/linux-x86_64'
         include '*.so'
@@ -240,7 +252,7 @@ tasks.named('missingJavadoc').configure {
 
 tasks.matching { it.name == 'bundlePlugin' }.configureEach {
     dependsOn 'buildNative'
-    
+
     from("${project.projectDir}/dist/native/lib") {
         into 'native/linux-x86_64'
         include '*.so*'
@@ -257,14 +269,29 @@ tasks.matching { it.name == 'bundlePlugin' }.configureEach {
 // Disable all verification/check tasks
 tasks.configureEach { task ->
     def disablePatterns = [
-        'check', 'test', 'javadoc', 'forbidden', 'logger',
+        'check', 'javadoc', 'forbidden', 'logger',
         'permission', 'license', 'thirdParty', 'validate',
         'spotless', 'checkstyle', 'pmd', 'spotbugs', 'missing', 'generatePomFileForNebulaPublication'
     ]
-    
+
     if (disablePatterns.any { task.name.toLowerCase().contains(it) }) {
         task.enabled = false
     }
+}
+
+tasks.named('test') {
+  dependsOn 'buildNative'
+
+  jvmArgs '--enable-preview', '--enable-native-access=ALL-UNNAMED'
+  jvmArgs "-Djava.library.path=${getNativeLibDir()}"
+  environment 'LD_LIBRARY_PATH', getNativeLibDir()
+  systemProperty 'tests.security.manager', 'false'
+
+  // Add these for better test output
+  testLogging {
+    events "passed", "skipped", "failed"
+    exceptionFormat "full"
+  }
 }
 
 tasks.matching { it.name == 'licenseHeaders' }.configureEach {
@@ -290,3 +317,46 @@ clean {
     delete resourceNativeBuildDir
 }
 
+// ============================================================================
+// JMH Benchmark Configuration
+// ============================================================================
+tasks.register('jmh', JavaExec) {
+    dependsOn 'buildNative', 'jmhClasses'
+    group = 'benchmark'
+    description = 'Run JMH benchmarks'
+    
+    mainClass = 'org.openjdk.jmh.Main'
+    classpath = sourceSets.jmh.runtimeClasspath
+    
+    jvmArgs '--enable-preview', '--enable-native-access=ALL-UNNAMED'
+    jvmArgs "-Djava.library.path=${getNativeLibDir()}"
+    environment 'LD_LIBRARY_PATH', getNativeLibDir()
+    
+    args = ['-f', '1', '-wi', '3', '-i', '5', 'org.opensearch.index.store.iouring.FileChannelBenchmark']
+}
+
+tasks.register('jmhClasses', JavaCompile) {
+    dependsOn 'generateBindings', 'classes'
+    source = sourceSets.jmh.java
+    classpath = sourceSets.jmh.compileClasspath
+    destinationDirectory = sourceSets.jmh.java.destinationDirectory
+    
+    options.release = 25
+    options.compilerArgs += ['--enable-preview']
+}
+
+// ============================================================================
+// Internal Cluster Test Configuration  
+// ============================================================================
+tasks.matching { it.name == 'internalClusterTest' }.configureEach {
+    dependsOn 'buildNative'
+    jvmArgs '--enable-preview', '--enable-native-access=ALL-UNNAMED'
+    jvmArgs "-Djava.library.path=${getNativeLibDir()}"
+    environment 'LD_LIBRARY_PATH', getNativeLibDir()
+    systemProperty 'tests.security.manager', 'false'
+    
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+    }
+}

@@ -97,7 +97,7 @@ final class IOUringIndexInput extends BufferedIndexInput {
 
     @Override
     public long length() {
-        return length - offset;
+        return length;
     }
 
     @Override
@@ -115,7 +115,7 @@ final class IOUringIndexInput extends BufferedIndexInput {
                         fd,
                         sliceLength
                 );
-        slice.seek(offset);
+        slice.seek(this.offset + offset);
         return slice;
     }
 
