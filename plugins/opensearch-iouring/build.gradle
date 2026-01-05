@@ -49,7 +49,7 @@ dependencies {
 
 
 def getFullLibraryPath() {
-    return "$LD_LIBRARY_PATH:/usr/lib64:/usr/lib"
+    return "/usr/lib64:/usr/lib"
 }
 
 // ============================================================================
@@ -135,7 +135,6 @@ tasks.register('jmhBenchClasses', JavaCompile) {
 // Internal Cluster Test Configuration
 // ============================================================================
 tasks.matching { it.name == 'internalClusterTest' }.configureEach {
-    dependsOn 'buildNative'
     jvmArgs '--enable-preview', '--enable-native-access=ALL-UNNAMED'
     jvmArgs "-Djava.library.path=${getFullLibraryPath()}"
     environment 'LD_LIBRARY_PATH', getFullLibraryPath()

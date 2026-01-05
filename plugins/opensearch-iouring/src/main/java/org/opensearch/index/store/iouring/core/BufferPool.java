@@ -82,7 +82,7 @@ public final class BufferPool {
      * Resets the singleton instance.
      * For testing purposes only.
      */
-    static void reset() {
+    public static void reset() {
         synchronized (INSTANCE_LOCK) {
             if (instance != null) {
                 instance.clear();
@@ -115,7 +115,7 @@ public final class BufferPool {
 
         this.tierSizes = config.bufferPoolTiers();
         this.tierMaxCounts = config.bufferPoolMaxPerTier();
-        this.pools = new ConcurrentLinkedQueue[tierCount];
+        this.pools = (ConcurrentLinkedQueue<ByteBuffer>[]) new ConcurrentLinkedQueue<?>[tierCount];
         this.poolCounts = new AtomicInteger[tierCount];
 
         for (int i = 0; i < tierCount; i++) {
