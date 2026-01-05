@@ -1,140 +1,137 @@
 package org.opensearch.index.store.iouring;
 
 import org.apache.lucene.store.BufferedIndexInput;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.lang.foreign.Arena;
-import java.lang.foreign.MemorySegment;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
 /**
  * Synchronous Lucene IndexInput backed by async io_uring.
  */
 final class IOUringIndexInput extends BufferedIndexInput {
 
-    private final IOUringScheduler scheduler;
-    private final int fd;
-    private final long length;
-    private boolean isClone=false;
+    /** The maximum chunk size for reads of 16384 bytes. */
+    private static final int CHUNK_SIZE = 16384;
 
-    private long offset;
+    /** the file channel we will read from */
+    protected final FileChannel channel;
 
-    IOUringIndexInput(
-            String resourceDesc,
-            IOUringScheduler scheduler,
-            int fd,
-            long length
-    ) {
-        super(resourceDesc);
-        this.scheduler = scheduler;
-        this.fd = fd;
-        this.length = length;
-        this.offset = 0;
+    /** is this instance a clone and hence does not own the file to close it */
+    boolean isClone = false;
+
+    /** start offset: non-zero in the slice case */
+    protected final long off;
+
+    /** end offset (start+length) */
+    protected final long end;
+
+    public IOUringIndexInput(String resourceDesc, FileChannel fc, IOContext context)
+        throws IOException {
+        super(resourceDesc, context);
+        this.channel = fc;
+        this.off = 0L;
+        this.end = fc.size();
+    }
+
+    public IOUringIndexInput(
+        String resourceDesc, FileChannel fc, long off, long length, int bufferSize) {
+        super(resourceDesc, bufferSize);
+        this.channel = fc;
+        this.off = off;
+        this.end = off + length;
+        this.isClone = true;
     }
 
     @Override
-    protected void readInternal(ByteBuffer b) throws IOException {
-        long pos = getFilePointer() + offset;
-
-        if (pos + b.remaining() > length) {
-            throw new EOFException(
-                    "Read past EOF: pos=" + pos + " len=" + b.remaining());
-        }
-
-        int toReadBytes = b.remaining();
-        int bytesRead = 0;
-        long reqId;
-        try (Arena arena = Arena.ofConfined()) {
-            while (toReadBytes > 0) {
-                System.out.println("readInternal: " + toReadBytes);
-                int chunk = Math.min(toReadBytes, getBufferSize());
-                b.limit(b.position() + chunk);
-                MemorySegment buffer = arena.allocate(chunk, getBufferSize());
-                reqId = scheduler.submitRead(
-                    fd,
-                    buffer,
-                    chunk,
-                    pos
-                );
-                bytesRead = scheduler.waitForCompletion(reqId);
-                if (bytesRead <= 0) {
-                    throw new EOFException("Unexpected EOF");
-                }
-                copyNativeToByteBuffer(buffer, bytesRead, b);
-                toReadBytes -= bytesRead;
-                pos += bytesRead;
-            }
+    public void close() throws IOException {
+        if (!isClone) {
+            channel.close();
         }
     }
 
-    /**
-     * Copy data from native MemorySegment to ByteBuffer.
-     * Handles both heap and direct ByteBuffers.
-     */
-    private void copyNativeToByteBuffer(MemorySegment source,
-                                        int length,
-                                        ByteBuffer dest) {
-        // Create a segment view of the destination buffer
-        // Works for both heap and direct ByteBuffers
-        MemorySegment destSegment = MemorySegment.ofBuffer(dest);
-
-        // Copy from native source to destination
-        // MemorySegment.copy handles heap vs native destination transparently
-        MemorySegment.copy(
-            source, 0,              // source segment, source offset
-            destSegment, 0,         // dest segment, dest offset (relative to buffer position)
-            length                  // number of bytes
-        );
-        dest.position(dest.position() + length);
-    }
-
     @Override
-    protected void seekInternal(long pos) throws IOException {
-
-    }
-
-    @Override
-    public long length() {
-        return length;
-    }
-
-    @Override
-    public IndexInput slice(String desc, long offset, long sliceLength)
-            throws IOException {
-
-        if (offset < 0 || sliceLength < 0 || offset + sliceLength > length) {
-            throw new IllegalArgumentException("Invalid slice");
-        }
-
-        IOUringIndexInput slice =
-                new IOUringIndexInput(
-                        desc,
-                        scheduler,
-                        fd,
-                        sliceLength
-                );
-        slice.seek(this.offset + offset);
-        return slice;
-    }
-
-    @Override
-    public BufferedIndexInput clone() {
+    public IOUringIndexInput clone() {
         IOUringIndexInput clone = (IOUringIndexInput) super.clone();
         clone.isClone = true;
         return clone;
     }
 
     @Override
-    public void close() {
-        if (!isClone) {
-            try {
-                PosixFD.close(fd);
-                scheduler.close();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+    public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
+        if ((length | offset) < 0 || length > this.length() - offset) {
+            throw new IllegalArgumentException(
+                "slice() "
+                    + sliceDescription
+                    + " out of bounds: offset="
+                    + offset
+                    + ",length="
+                    + length
+                    + ",fileLength="
+                    + this.length()
+                    + ": "
+                    + this);
+        }
+        return new IOUringIndexInput(
+            getFullSliceDescription(sliceDescription),
+            channel,
+            off + offset,
+            length,
+            getBufferSize());
+    }
+
+    @Override
+    public final long length() {
+        return end - off;
+    }
+
+    @Override
+    protected void readInternal(ByteBuffer b) throws IOException {
+        long pos = getFilePointer() + off;
+
+        if (pos + b.remaining() > end) {
+            throw new EOFException("read past EOF: " + this);
+        }
+
+        try {
+            int readLength = b.remaining();
+            while (readLength > 0) {
+                final int toRead = Math.min(CHUNK_SIZE, readLength);
+                b.limit(b.position() + toRead);
+                assert b.remaining() == toRead;
+                final int i = channel.read(b, pos);
+                if (i < 0) {
+                    // be defensive here, even though we checked before hand, something could have changed
+                    throw new EOFException(
+                        "read past EOF: "
+                            + this
+                            + " buffer: "
+                            + b
+                            + " chunkLen: "
+                            + toRead
+                            + " end: "
+                            + end);
+                }
+                assert i > 0
+                    : "FileChannel.read with non zero-length bb.remaining() must always read at least "
+                    + "one byte (FileChannel is in blocking mode, see spec of ReadableByteChannel)";
+                pos += i;
+                readLength -= i;
             }
+            assert readLength == 0;
+        } catch (IOException ioe) {
+            throw new IOException(ioe.getMessage() + ": " + this, ioe);
+        }
+    }
+
+    @Override
+    protected void seekInternal(long pos) throws IOException {
+        if (pos > length()) {
+            throw new EOFException(
+                "read past EOF: pos=" + pos + " vs length=" + length() + ": " + this);
         }
     }
 }

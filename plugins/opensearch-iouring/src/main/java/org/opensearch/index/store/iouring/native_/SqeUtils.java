@@ -342,7 +342,7 @@ public final class SqeUtils {
      */
     public static long getBufferAddress(ByteBuffer buffer) {
         if (buffer.isDirect()) {
-            return MemorySegment.ofBuffer(buffer).address() + buffer.position();
+            return MemorySegment.ofBuffer(buffer).address();
         }
         throw new IllegalArgumentException(
             "Heap buffers cannot be used with io_uring. " +

@@ -9,8 +9,8 @@
 package org.opensearch.index.store.iouring.api;
 
 
+import org.opensearch.index.store.iouring.PosixFD;
 import org.opensearch.index.store.iouring.core.BufferPool;
-import org.opensearch.index.store.iouring.core.ErrorHandler;
 import org.opensearch.index.store.iouring.core.IoUringRing;
 import org.opensearch.index.store.iouring.native_.SqeUtils;
 
@@ -149,71 +149,17 @@ public class IoUringFileChannel extends FileChannel {
      *
      * @param path    Path to the file
      * @param options Set of open options
-     * @param attrs   File attributes for creation
+     * @param attrs   File attributes for creation (ignored, use file system defaults)
      * @return IoUringFileChannel instance
      * @throws IOException if file cannot be opened
      */
     public static IoUringFileChannel open(Path path, Set<? extends OpenOption> options,
                                           FileAttribute<?>... attrs) throws IOException {
-        // Normalize options
         Set<OpenOption> optionSet = new HashSet<>(options);
-
-        // Determine read/write mode
-        boolean read = optionSet.contains(StandardOpenOption.READ);
-        boolean write = optionSet.contains(StandardOpenOption.WRITE);
-        boolean append = optionSet.contains(StandardOpenOption.APPEND);
-
-        // Default to read if nothing specified
-        if (!read && !write && !append) {
-            read = true;
-        }
-
-        // Append implies write
-        if (append) {
-            write = true;
-        }
-
-        // Open using standard Java API (not io_uring)
-        // This handles all the complex file creation/permission logic
-        FileChannel tempChannel = FileChannel.open(path, options, attrs);
-        int fd;
-
-        try {
-            // Extract file descriptor using reflection or sun.misc
-            fd = extractFd(tempChannel);
-        } catch (Exception e) {
-            tempChannel.close();
-            throw new IOException("Failed to extract file descriptor", e);
-        }
-
-        // Don't close tempChannel - we're taking ownership of the fd
-        // But we need to prevent it from closing the fd when GC'd
-        // This is a bit tricky - we'll keep a reference to prevent GC
-
-        IoUringFileChannel channel = new IoUringFileChannel(fd, path, read, write, optionSet);
-        channel.fallbackChannel = tempChannel; // Keep reference and use for fallback ops
-
+        int fd = PosixFD.open(path, optionSet);
+        IoUringFileChannel channel = new IoUringFileChannel(fd, path, optionSet.contains(StandardOpenOption.READ), optionSet.contains(StandardOpenOption.WRITE), optionSet);
+        channel.fallbackChannel = FileChannel.open(path, optionSet, attrs);
         return channel;
-    }
-
-    /**
-     * Extracts the native file descriptor from a FileChannel.
-     */
-    private static int extractFd(FileChannel channel) throws Exception {
-        // Use reflection to get the fd
-        // FileChannelImpl has a 'fd' field of type FileDescriptor
-        // FileDescriptor has an 'fd' int field
-
-        var channelClass = channel.getClass();
-        var fdField = channelClass.getDeclaredField("fd");
-        fdField.setAccessible(true);
-        var fileDescriptor = fdField.get(channel);
-
-        var fdClass = fileDescriptor.getClass();
-        var fdIntField = fdClass.getDeclaredField("fd");
-        fdIntField.setAccessible(true);
-
-        return (int) fdIntField.get(fileDescriptor);
     }
 
     /**
@@ -632,25 +578,7 @@ public class IoUringFileChannel extends FileChannel {
     @Override
     public void force(boolean metaData) throws IOException {
         ensureOpen();
-
-        beginOperation();
-        try {
-            CompletableFuture<Integer> future = ring.submit(sqe -> {
-                SqeUtils.prepareFsync(sqe, fd, !metaData);
-            });
-
-            try {
-                int result = future.join();
-                if (result < 0) {
-                    throw ErrorHandler.translateError(-result, path.toString(), "fsync");
-                }
-            } catch (CompletionException e) {
-                throw unwrapException(e);
-            }
-
-        } finally {
-            endOperation();
-        }
+        fallbackChannel.force(metaData);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -824,7 +752,6 @@ public class IoUringFileChannel extends FileChannel {
             }
             closed = true;
 
-            // Wait for active operations to complete
             while (activeOperations > 0) {
                 try {
                     closeLock.wait(1000);
@@ -835,32 +762,17 @@ public class IoUringFileChannel extends FileChannel {
             }
         }
 
-        // Close fallback channel if created
+        // Close fallback channel if created (it has its own fd)
         FileChannel fc = fallbackChannel;
         if (fc != null) {
             try {
                 fc.close();
-            } catch (IOException e) {
-                // Fallback close failed - this also closes our fd
-                // so we don't need to close via io_uring
-                return;
+            } catch (IOException ignored) {
             }
         }
 
-        // Close fd via io_uring (if not closed by fallback)
-        // Note: If fallbackChannel was used, it already closed the fd
-        // We only close here if fallbackChannel was never created
-        if (fallbackChannel == null) {
-            try {
-                CompletableFuture<Integer> future = ring.submit(sqe -> {
-                    SqeUtils.prepareClose(sqe, fd);
-                });
-                future.join();
-            } catch (Exception e) {
-                // Log but don't throw - we're closing
-                System.err.println("Warning: close via io_uring failed: " + e.getMessage());
-            }
-        }
+        // Close our fd
+        PosixFD.close(fd);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

@@ -5,11 +5,13 @@ import org.apache.lucene.store.FSLockFactory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.LockFactory;
+import org.opensearch.index.store.iouring.api.IoUringFileChannel;
 
 import java.io.IOException;
 import java.io.Closeable;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 /**
  * Lucene Directory backed by io_uring for read operations.
@@ -17,9 +19,6 @@ import java.nio.file.Path;
  * Write operations are delegated to FSDirectory.
  */
 public final class IOUringDirectory extends FSDirectory {
-
-    private static final int DEFAULT_QUEUE_DEPTH = 1024;
-
     /* ============================
      * Constructors
      * ============================ */
@@ -46,48 +45,10 @@ public final class IOUringDirectory extends FSDirectory {
             throws IOException {
 
         ensureOpen();
-        FileHandle handle = FileHandle.open(getDirectory().resolve(name));
-
         return new IOUringIndexInput(
                 "IOUringIndexInput(path=\"" + getDirectory().resolve(name) + "\")",
-            new IOUringScheduler(DEFAULT_QUEUE_DEPTH),
-                handle.fd(),
-                handle.length()
+            IoUringFileChannel.open(getDirectory().resolve(name), StandardOpenOption.READ),
+            context
         );
-    }
-
-
-    /* ============================
-     * Internal File Handle
-     * ============================ */
-
-    private static final class FileHandle implements Closeable {
-
-        private final int fd;
-        private final long length;
-
-        private FileHandle(int fd, long length) {
-            this.fd = fd;
-            this.length = length;
-        }
-
-        static FileHandle open(Path path) throws IOException {
-            int fd = PosixFD.openReadOnly(path);
-            long length = Files.size(path);
-            return new FileHandle(fd, length);
-        }
-
-        int fd() {
-            return fd;
-        }
-
-        long length() {
-            return length;
-        }
-
-        @Override
-        public void close() throws IOException {
-            PosixFD.close(fd);
-        }
     }
 }

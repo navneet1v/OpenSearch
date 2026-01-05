@@ -85,6 +85,7 @@ public final class NativeRing implements AutoCloseable {
         LINKER = Linker.nativeLinker();
 
         SymbolLookup lookup = null;
+        SymbolLookup ffiLookup = null;
         String loadError = null;
 
         // Try to load liburing with common names
@@ -99,15 +100,27 @@ public final class NativeRing implements AutoCloseable {
             }
         }
 
+        // Try to load liburing-ffi for inline functions (io_uring_wait_cqe, io_uring_cq_advance)
+        String[] ffiLibraryNames = {"liburing-ffi.so.2", "liburing-ffi.so", "uring-ffi"};
+        for (String name : ffiLibraryNames) {
+            try {
+                ffiLookup = SymbolLookup.libraryLookup(name, Arena.global());
+                break;
+            } catch (IllegalArgumentException e) {
+                // Continue trying other names
+            }
+        }
+
         LIBURING = lookup;
-        LIBRARY_AVAILABLE = (lookup != null);
-        LIBRARY_LOAD_ERROR = loadError;
+        LIBRARY_AVAILABLE = (lookup != null && ffiLookup != null);
+        LIBRARY_LOAD_ERROR = (lookup == null) ? loadError : 
+            (ffiLookup == null) ? "liburing-ffi not found" : null;
 
         if (LIBRARY_AVAILABLE) {
             try {
-                // int io_uring_queue_init(unsigned entries, struct io_uring *ring, unsigned flags)
+                // Functions from liburing.so
                 io_uring_queue_init = LINKER.downcallHandle(
-                    LIBURING.find("io_uring_queue_init").orElseThrow(),
+                    lookup.find("io_uring_queue_init").orElseThrow(),
                     FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.JAVA_INT,
@@ -116,27 +129,34 @@ public final class NativeRing implements AutoCloseable {
                     )
                 );
 
-                // void io_uring_queue_exit(struct io_uring *ring)
                 io_uring_queue_exit = LINKER.downcallHandle(
-                    LIBURING.find("io_uring_queue_exit").orElseThrow(),
+                    lookup.find("io_uring_queue_exit").orElseThrow(),
                     FunctionDescriptor.ofVoid(ValueLayout.ADDRESS)
                 );
 
-                // struct io_uring_sqe *io_uring_get_sqe(struct io_uring *ring)
                 io_uring_get_sqe = LINKER.downcallHandle(
-                    LIBURING.find("io_uring_get_sqe").orElseThrow(),
+                    lookup.find("io_uring_get_sqe").orElseThrow(),
                     FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS)
                 );
 
-                // int io_uring_submit(struct io_uring *ring)
                 io_uring_submit = LINKER.downcallHandle(
-                    LIBURING.find("io_uring_submit").orElseThrow(),
+                    lookup.find("io_uring_submit").orElseThrow(),
                     FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS)
                 );
 
-                // int io_uring_wait_cqe(struct io_uring *ring, struct io_uring_cqe **cqe_ptr)
+                io_uring_peek_batch_cqe = LINKER.downcallHandle(
+                    lookup.find("io_uring_peek_batch_cqe").orElseThrow(),
+                    FunctionDescriptor.of(
+                        ValueLayout.JAVA_INT,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_INT
+                    )
+                );
+
+                // Functions from liburing-ffi.so (inline functions exported)
                 io_uring_wait_cqe = LINKER.downcallHandle(
-                    LIBURING.find("io_uring_wait_cqe").orElseThrow(),
+                    ffiLookup.find("io_uring_wait_cqe").orElseThrow(),
                     FunctionDescriptor.of(
                         ValueLayout.JAVA_INT,
                         ValueLayout.ADDRESS,
@@ -144,21 +164,8 @@ public final class NativeRing implements AutoCloseable {
                     )
                 );
 
-                // unsigned io_uring_peek_batch_cqe(struct io_uring *ring,
-                //                                  struct io_uring_cqe **cqes, unsigned count)
-                io_uring_peek_batch_cqe = LINKER.downcallHandle(
-                    LIBURING.find("io_uring_peek_batch_cqe").orElseThrow(),
-                    FunctionDescriptor.of(
-                        ValueLayout.JAVA_INT,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.ADDRESS,
-                        ValueLayout.JAVA_INT
-                    )
-                );
-
-                // void io_uring_cq_advance(struct io_uring *ring, unsigned nr)
                 io_uring_cq_advance = LINKER.downcallHandle(
-                    LIBURING.find("io_uring_cq_advance").orElseThrow(),
+                    ffiLookup.find("io_uring_cq_advance").orElseThrow(),
                     FunctionDescriptor.ofVoid(
                         ValueLayout.ADDRESS,
                         ValueLayout.JAVA_INT

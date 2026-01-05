@@ -14,10 +14,11 @@ import org.junit.Test;
 import org.opensearch.index.store.iouring.native_.NativeRing;
 import org.opensearch.index.store.iouring.native_.SqeUtils;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
@@ -69,9 +70,9 @@ public class IoUringRingIntegrationTests {
     public void testSubmitMultipleNops() throws Exception {
         IoUringRing ring = IoUringRing.getInstance();
 
-        CompletableFuture<Integer>[] futures = new CompletableFuture[10];
+        List<CompletableFuture<Integer>> futures = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
-            futures[i] = ring.submit(sqe -> SqeUtils.prepareNop(sqe));
+            futures.add(ring.submit(sqe -> SqeUtils.prepareNop(sqe)));
         }
 
         for (CompletableFuture<Integer> future : futures) {
@@ -131,7 +132,7 @@ public class IoUringRingIntegrationTests {
 
         int threadCount = 4;
         int opsPerThread = 25;
-        CompletableFuture<?>[] allFutures = new CompletableFuture[threadCount * opsPerThread];
+        CompletableFuture<?>[] allFutures = new CompletableFuture<?>[threadCount * opsPerThread];
 
         Thread[] threads = new Thread[threadCount];
         for (int t = 0; t < threadCount; t++) {

@@ -123,7 +123,7 @@ public final class IoUringRing {
      * Resets the singleton instance.
      * For testing purposes only.
      */
-    static void reset() {
+    public static void reset() {
         synchronized (INSTANCE_LOCK) {
             if (instance != null) {
                 instance.shutdown();
@@ -269,48 +269,50 @@ public final class IoUringRing {
         PendingOperation pendingOp = new PendingOperation(future, onComplete);
         pendingOps.put(opId, pendingOp);
 
-        // Get SQE
-        MemorySegment sqe = nativeRing.getSqe();
-        if (sqe == null) {
-            // Queue full - submit pending and retry
-            nativeRing.submit();
-            sqe = nativeRing.getSqe();
-
+        synchronized (nativeRing) {
+            // Get SQE
+            MemorySegment sqe = nativeRing.getSqe();
             if (sqe == null) {
-                // Still full - fail the operation
+                // Queue full - submit pending and retry
+                nativeRing.submit();
+                sqe = nativeRing.getSqe();
+
+                if (sqe == null) {
+                    // Still full - fail the operation
+                    pendingOps.remove(opId);
+                    invokeOnComplete(onComplete);
+
+                    CompletableFuture<Integer> failed = new CompletableFuture<>();
+                    failed.completeExceptionally(
+                        new IllegalStateException("Submission queue is full"));
+                    return failed;
+                }
+            }
+
+            // Prepare the SQE
+            try {
+                preparer.accept(sqe);
+                SqeUtils.setUserData(sqe, opId);
+            } catch (Throwable t) {
+                pendingOps.remove(opId);
+                invokeOnComplete(onComplete);
+
+                CompletableFuture<Integer> failed = new CompletableFuture<>();
+                failed.completeExceptionally(t);
+                return failed;
+            }
+
+            // Submit to kernel
+            int submitted = nativeRing.submit();
+            if (submitted < 0) {
                 pendingOps.remove(opId);
                 invokeOnComplete(onComplete);
 
                 CompletableFuture<Integer> failed = new CompletableFuture<>();
                 failed.completeExceptionally(
-                    new IllegalStateException("Submission queue is full"));
+                    ErrorHandler.translateError(-submitted, null, "submit failed"));
                 return failed;
             }
-        }
-
-        // Prepare the SQE
-        try {
-            preparer.accept(sqe);
-            SqeUtils.setUserData(sqe, opId);
-        } catch (Throwable t) {
-            pendingOps.remove(opId);
-            invokeOnComplete(onComplete);
-
-            CompletableFuture<Integer> failed = new CompletableFuture<>();
-            failed.completeExceptionally(t);
-            return failed;
-        }
-
-        // Submit to kernel
-        int submitted = nativeRing.submit();
-        if (submitted < 0) {
-            pendingOps.remove(opId);
-            invokeOnComplete(onComplete);
-
-            CompletableFuture<Integer> failed = new CompletableFuture<>();
-            failed.completeExceptionally(
-                ErrorHandler.translateError(-submitted, null, "submit failed"));
-            return failed;
         }
 
         return future;
@@ -338,11 +340,8 @@ public final class IoUringRing {
      * Completion polling loop with adaptive backoff.
      */
     private void pollCompletions() {
-        // Pre-allocate buffer for completions: [userData, result] pairs
         long[] completions = new long[COMPLETION_BATCH_SIZE * 2];
-
         long backoffNs = config.pollBackoffInitialNs();
-        int emptyPolls = 0;
 
         while (running) {
             try {
@@ -351,49 +350,17 @@ public final class IoUringRing {
                 if (count > 0) {
                     processCompletions(completions, count);
                     nativeRing.advanceCq(count);
-
                     backoffNs = config.pollBackoffInitialNs();
-                    emptyPolls = 0;
-
-                } else if (count == 0) {
-                    emptyPolls++;
-
-                    if (emptyPolls >= config.pollBackoffRetryLimit()) {
-                        count = nativeRing.waitCqes(completions, COMPLETION_BATCH_SIZE);
-
-                        if (count > 0) {
-                            processCompletions(completions, count);
-                            nativeRing.advanceCq(count);
-                        }
-
-                        backoffNs = config.pollBackoffInitialNs();
-                        emptyPolls = 0;
-
-                    } else {
-                        if (backoffNs > 0) {
-                            LockSupport.parkNanos(backoffNs);
-                            backoffNs = Math.min(backoffNs * 2, config.pollBackoffMaxNs());
-                        } else {
-                            Thread.onSpinWait();
-                        }
-                    }
-
                 } else {
-                    if (count == -ErrorHandler.EINTR) {
-                        continue;
-                    }
-                    System.err.println("Warning: peekCqes returned error: " +
-                        ErrorHandler.errnoName(-count));
+                    LockSupport.parkNanos(backoffNs);
+                    backoffNs = Math.min(backoffNs * 2, config.pollBackoffMaxNs());
                 }
-
             } catch (Throwable t) {
                 if (running) {
                     System.err.println("Error in completion poller: " + t.getMessage());
-                    t.printStackTrace();
                 }
             }
         }
-
         drainRemainingCompletions(completions);
     }
 
@@ -535,18 +502,7 @@ public final class IoUringRing {
 
         // Stop completion poller
         try {
-            // Submit a NOP to wake up the poller if it's in blocking wait
-            if (nativeRing.isOpen()) {
-                MemorySegment sqe = nativeRing.getSqe();
-                if (sqe != null) {
-                    SqeUtils.prepareNop(sqe);
-                    SqeUtils.setUserData(sqe, 0); // Special ID for shutdown NOP
-                    nativeRing.submit();
-                }
-            }
-
             completionPoller.join(1000);
-
             if (completionPoller.isAlive()) {
                 completionPoller.interrupt();
                 completionPoller.join(1000);
