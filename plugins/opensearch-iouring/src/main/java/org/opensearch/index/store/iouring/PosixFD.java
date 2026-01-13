@@ -18,6 +18,8 @@ import java.lang.invoke.MethodHandle;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+
+import com.sun.nio.file.ExtendedOpenOption;
 import java.util.Set;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
@@ -37,6 +39,7 @@ public final class PosixFD {
     private static final int O_APPEND = 02000;
     private static final int O_DSYNC = 010000;
     private static final int O_SYNC = 04010000;
+    private static final int O_DIRECT = 040000;
 
     private static final int DEFAULT_MODE = 0644;
 
@@ -126,6 +129,9 @@ public final class PosixFD {
         }
         if (options.contains(StandardOpenOption.DSYNC)) {
             flags |= O_DSYNC;
+        }
+        if (options.contains(ExtendedOpenOption.DIRECT)) {
+            flags |= O_DIRECT;
         }
         return flags;
     }
