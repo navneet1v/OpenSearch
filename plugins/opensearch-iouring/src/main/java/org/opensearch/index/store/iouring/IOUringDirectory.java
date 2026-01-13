@@ -46,9 +46,7 @@ public final class IOUringDirectory extends FSDirectory {
 
         ensureOpen();
         return new IOUringIndexInput(
-                "IOUringIndexInput(path=\"" + getDirectory().resolve(name) + "\")",
-            IoUringFileChannel.open(getDirectory().resolve(name), StandardOpenOption.READ),
-            context
-        );
+                getDirectory().resolve(name),
+                16*1024, 16*1024);
     }
 }
