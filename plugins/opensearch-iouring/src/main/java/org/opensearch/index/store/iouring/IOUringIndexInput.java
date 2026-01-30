@@ -76,7 +76,31 @@ final class IOUringIndexInput extends IndexInput {
         this.buffer = allocateBuffer(bufferSize, blockSize);
         this.isOpen = true;
         this.isClosable = true;
-        this.channel = IoUringFileChannel.open(path, StandardOpenOption.READ, getDirectOpenOption());
+        
+        // Try O_DIRECT, fallback to buffered I/O if unsupported
+        IOException directIOException = null;
+        try {
+            this.channel = IoUringFileChannel.open(path, StandardOpenOption.READ, getDirectOpenOption());
+            System.err.println("SUCCESS: Opened " + path + " with O_DIRECT");
+        } catch (IOException e) {
+            directIOException = e;
+            System.err.println("WARNING: O_DIRECT failed for " + path);
+            System.err.println("  Error: " + e.getClass().getName() + ": " + e.getMessage());
+            if (e.getCause() != null) {
+                System.err.println("  Cause: " + e.getCause().getClass().getName() + ": " + e.getCause().getMessage());
+            }
+            System.err.println("  Falling back to buffered I/O");
+            
+            try {
+                this.channel = IoUringFileChannel.open(path, StandardOpenOption.READ);
+                System.err.println("SUCCESS: Opened " + path + " without O_DIRECT");
+            } catch (IOException e2) {
+                System.err.println("FAILED: Cannot open " + path + " even without O_DIRECT");
+                System.err.println("  Error: " + e2.getClass().getName() + ": " + e2.getMessage());
+                throw e2;
+            }
+        }
+        
         this.length = channel.size();
         this.offset = 0L;
         this.filePos = -bufferSize;
