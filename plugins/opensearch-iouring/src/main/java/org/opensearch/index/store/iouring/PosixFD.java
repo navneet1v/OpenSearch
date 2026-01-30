@@ -46,6 +46,7 @@ public final class PosixFD {
 
     private static final MethodHandle OPEN;
     private static final MethodHandle CLOSE;
+    private static final MethodHandle ERRNO_LOCATION;
 
     static {
         try {
@@ -56,6 +57,10 @@ public final class PosixFD {
             CLOSE = LINKER.downcallHandle(
                 LIBC.find("close").orElseThrow(),
                 FunctionDescriptor.of(JAVA_INT, JAVA_INT)
+            );
+            ERRNO_LOCATION = LINKER.downcallHandle(
+                LIBC.find("__errno_location").orElseThrow(),
+                FunctionDescriptor.of(ADDRESS)
             );
         } catch (Throwable t) {
             throw new ExceptionInInitializerError(t);
@@ -73,7 +78,8 @@ public final class PosixFD {
             MemorySegment cPath = arena.allocateFrom(path.toAbsolutePath().toString());
             int fd = (int) OPEN.invokeExact(cPath, flags, DEFAULT_MODE);
             if (fd < 0) {
-                throw new IOException("open failed for " + path);
+                int errno = getErrno();
+                throw new IOException("open failed for " + path + " (errno=" + errno + ": " + strerror(errno) + ")");
             }
             return fd;
         } catch (IOException e) {
@@ -97,6 +103,27 @@ public final class PosixFD {
         } catch (Throwable t) {
             throw new IOException("close failed", t);
         }
+    }
+
+    private static int getErrno() {
+        try {
+            MemorySegment errnoPtr = (MemorySegment) ERRNO_LOCATION.invokeExact();
+            return errnoPtr.get(JAVA_INT, 0);
+        } catch (Throwable t) {
+            return -1;
+        }
+    }
+
+    private static String strerror(int errno) {
+        return switch (errno) {
+            case 2 -> "ENOENT (No such file or directory)";
+            case 13 -> "EACCES (Permission denied)";
+            case 17 -> "EEXIST (File exists)";
+            case 21 -> "EISDIR (Is a directory)";
+            case 22 -> "EINVAL (Invalid argument)";
+            case 28 -> "ENOSPC (No space left on device)";
+            default -> "Unknown error";
+        };
     }
 
     private static int toFlags(Set<? extends OpenOption> options) {
