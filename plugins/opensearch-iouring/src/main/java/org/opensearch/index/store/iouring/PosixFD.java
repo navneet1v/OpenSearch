@@ -46,7 +46,7 @@ public final class PosixFD {
 
     private static final MethodHandle OPEN;
     private static final MethodHandle CLOSE;
-    private static final MethodHandle ERRNO_LOCATION;
+    private static final MethodHandle STRERROR;
 
     static {
         try {
@@ -58,9 +58,9 @@ public final class PosixFD {
                 LIBC.find("close").orElseThrow(),
                 FunctionDescriptor.of(JAVA_INT, JAVA_INT)
             );
-            ERRNO_LOCATION = LINKER.downcallHandle(
-                LIBC.find("__errno_location").orElseThrow(),
-                FunctionDescriptor.of(ADDRESS)
+            STRERROR = LINKER.downcallHandle(
+                LIBC.find("strerror").orElseThrow(),
+                FunctionDescriptor.of(ADDRESS, JAVA_INT)
             );
         } catch (Throwable t) {
             throw new ExceptionInInitializerError(t);
@@ -74,12 +74,22 @@ public final class PosixFD {
      */
     public static int open(Path path, Set<? extends OpenOption> options) throws IOException {
         int flags = toFlags(options);
+        String pathStr = path.toAbsolutePath().toString();
+        
+        // Check if file exists first for better error messages
+        java.io.File file = new java.io.File(pathStr);
+        if (!file.exists() && !options.contains(StandardOpenOption.CREATE) && !options.contains(StandardOpenOption.CREATE_NEW)) {
+            throw new IOException("File does not exist: " + path);
+        }
+        if (file.exists() && !file.canRead()) {
+            throw new IOException("Cannot read file (permission denied): " + path);
+        }
+        
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment cPath = arena.allocateFrom(path.toAbsolutePath().toString());
+            MemorySegment cPath = arena.allocateFrom(pathStr);
             int fd = (int) OPEN.invokeExact(cPath, flags, DEFAULT_MODE);
             if (fd < 0) {
-                int errno = getErrno();
-                throw new IOException("open failed for " + path + " (errno=" + errno + ": " + strerror(errno) + ")");
+                throw new IOException("open() returned " + fd + " for " + path + " (flags=0x" + Integer.toHexString(flags) + ")");
             }
             return fd;
         } catch (IOException e) {
@@ -105,25 +115,21 @@ public final class PosixFD {
         }
     }
 
-    private static int getErrno() {
+    private static String getErrorMessage(int errno) {
         try {
-            MemorySegment errnoPtr = (MemorySegment) ERRNO_LOCATION.invokeExact();
-            return errnoPtr.get(JAVA_INT, 0);
+            MemorySegment errStr = (MemorySegment) STRERROR.invokeExact(errno);
+            return errStr.getString(0);
         } catch (Throwable t) {
-            return -1;
+            return switch (errno) {
+                case 2 -> "ENOENT (No such file or directory)";
+                case 13 -> "EACCES (Permission denied)";
+                case 17 -> "EEXIST (File exists)";
+                case 21 -> "EISDIR (Is a directory)";
+                case 22 -> "EINVAL (Invalid argument)";
+                case 28 -> "ENOSPC (No space left on device)";
+                default -> "Unknown error (" + errno + ")";
+            };
         }
-    }
-
-    private static String strerror(int errno) {
-        return switch (errno) {
-            case 2 -> "ENOENT (No such file or directory)";
-            case 13 -> "EACCES (Permission denied)";
-            case 17 -> "EEXIST (File exists)";
-            case 21 -> "EISDIR (Is a directory)";
-            case 22 -> "EINVAL (Invalid argument)";
-            case 28 -> "ENOSPC (No space left on device)";
-            default -> "Unknown error";
-        };
     }
 
     private static int toFlags(Set<? extends OpenOption> options) {
