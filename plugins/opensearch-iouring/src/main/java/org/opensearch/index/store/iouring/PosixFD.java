@@ -21,14 +21,12 @@ import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Set;
-import java.util.Set;
 
 /**
  * POSIX file descriptor operations using Panama FFM.
  */
 public final class PosixFD {
 
-    // POSIX open flags (Linux)
     private static final int O_RDONLY = 0;
     private static final int O_WRONLY = 1;
     private static final int O_RDWR = 2;
@@ -37,7 +35,7 @@ public final class PosixFD {
     private static final int O_APPEND = 02000;
     private static final int O_DSYNC = 010000;
     private static final int O_SYNC = 04010000;
-    private static final int O_DIRECT = 040000;
+    private static final int O_DIRECT = 0200000;
 
     private static final int DEFAULT_MODE = 0644;
 
@@ -75,7 +73,7 @@ public final class PosixFD {
     public static int open(Path path, Set<? extends OpenOption> options) throws IOException {
         int flags = toFlags(options);
         String pathStr = path.toAbsolutePath().toString();
-        
+
         // Check if file exists first for better error messages
         java.io.File file = new java.io.File(pathStr);
         if (!file.exists() && !options.contains(StandardOpenOption.CREATE) && !options.contains(StandardOpenOption.CREATE_NEW)) {
@@ -84,7 +82,7 @@ public final class PosixFD {
         if (file.exists() && !file.canRead()) {
             throw new IOException("Cannot read file (permission denied): " + path);
         }
-        
+
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment cPath = arena.allocateFrom(pathStr);
             int fd = (int) OPEN.invokeExact(cPath, flags, DEFAULT_MODE);
