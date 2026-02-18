@@ -155,9 +155,9 @@ configurations.all {
 // this will only happen when buildSrc is built on its own during build init
 if (project == rootProject) {
   repositories {
-    if (System.getProperty("repos.mavenLocal") != null) {
+    //if (System.getProperty("repos.mavenLocal") != null) {
       mavenLocal()
-    }
+    //}
   }
   dependencies {
     // add this so the runtime classpath so Gradle will properly track it as a build runtime classpath input
