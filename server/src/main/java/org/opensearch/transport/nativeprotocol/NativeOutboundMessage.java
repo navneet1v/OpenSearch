@@ -72,6 +72,7 @@ public abstract class NativeOutboundMessage extends NetworkMessage {
         int variableHeaderLength = -1;
         final long preHeaderPosition = bytesStream.position();
         writeVariableHeader(bytesStream);
+        bytesStream.writeInt(version.wireVersion);
         variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
 
         try (CompressibleBytesOutputStream stream = new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
@@ -80,6 +81,7 @@ public abstract class NativeOutboundMessage extends NetworkMessage {
 
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
+                stream.writeInt(version.wireVersion);
             }
             reference = writeMessage(stream);
         }

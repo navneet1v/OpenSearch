@@ -289,14 +289,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns the minimum version between the 2.
      */
     public static Version min(Version version1, Version version2) {
-        return version1.id < version2.id ? version1 : version2;
+        return version1.compareTo(version2) <= 0 ? version1 : version2;
     }
 
     /**
      * Returns the maximum version between the 2
      */
     public static Version max(Version version1, Version version2) {
-        return version1.id > version2.id ? version1 : version2;
+        return version1.compareTo(version2) >= 0 ? version1 : version2;
     }
 
     /**
@@ -363,9 +363,14 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public final byte minor;
     public final byte revision;
     public final byte build;
+    public final int wireVersion;
     public final org.apache.lucene.util.Version luceneVersion;
 
     Version(int id, org.apache.lucene.util.Version luceneVersion) {
+        this(id, luceneVersion, 0);
+    }
+
+    Version(int id, org.apache.lucene.util.Version luceneVersion, int wireVersion) {
         // flip the 28th bit of the ID; identify as an opensearch vs legacy system:
         // we start from version 1 for opensearch, so ignore the 0 (empty) version
         if (id != 0) {
@@ -378,25 +383,50 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         this.minor = (byte) ((id / MINOR_SHIFT) % VERSION_SHIFT);
         this.revision = (byte) ((id / REVISION_SHIFT) % VERSION_SHIFT);
         this.build = (byte) (id % VERSION_SHIFT);
+        this.wireVersion = wireVersion;
         this.luceneVersion = Objects.requireNonNull(luceneVersion);
         this.minCompatVersion = null;
         this.minIndexCompatVersion = null;
     }
 
+    /**
+     * Creates a Version with the given id and wireVersion, using the same lucene version as
+     * the base version identified by the id. Used for mid-release wire protocol changes.
+     */
+    public static Version fromId(int id, int wireVersion) {
+        Version base = fromId(id);
+        if (wireVersion == 0) {
+            return base;
+        }
+        return new Version(id, base.luceneVersion, wireVersion);
+    }
+
     public boolean after(Version version) {
-        return version.id < id;
+        if (this.id != version.id) {
+            return this.id > version.id;
+        }
+        return this.wireVersion > version.wireVersion;
     }
 
     public boolean onOrAfter(Version version) {
-        return version.id <= id;
+        if (this.id != version.id) {
+            return this.id >= version.id;
+        }
+        return this.wireVersion >= version.wireVersion;
     }
 
     public boolean before(Version version) {
-        return version.id > id;
+        if (this.id != version.id) {
+            return this.id < version.id;
+        }
+        return this.wireVersion < version.wireVersion;
     }
 
     public boolean onOrBefore(Version version) {
-        return version.id >= id;
+        if (this.id != version.id) {
+            return this.id <= version.id;
+        }
+        return this.wireVersion <= version.wireVersion;
     }
 
     public int compareMajor(Version other) {
@@ -413,7 +443,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
 
     @Override
     public int compareTo(Version other) {
-        return Integer.compare(this.id, other.id);
+        int cmp = Integer.compare(this.id, other.id);
+        if (cmp != 0) {
+            return cmp;
+        }
+        return Integer.compare(this.wireVersion, other.wireVersion);
     }
 
     @Override
@@ -554,6 +588,9 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             sb.append("-rc");
             sb.append(build - 50);
         }
+        if (wireVersion > 0) {
+            sb.append(".w").append(wireVersion);
+        }
         return sb.toString();
     }
 
@@ -567,17 +604,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         }
 
         Version version = (Version) o;
-
-        if (id != version.id) {
-            return false;
-        }
-
-        return true;
+        return id == version.id && wireVersion == version.wireVersion;
     }
 
     @Override
     public int hashCode() {
-        return id;
+        return 31 * id + wireVersion;
     }
 
     public boolean isBeta() {

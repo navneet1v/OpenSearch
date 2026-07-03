@@ -57,7 +57,7 @@ public class Header {
 
     private final TransportProtocol protocol;
     private final int networkMessageSize;
-    private final Version version;
+    private Version version;
     private final long requestId;
     private final byte status;
     // These are directly set by tests
@@ -142,6 +142,13 @@ public class Header {
             this.actionName = input.readString();
         } else {
             this.actionName = RESPONSE_NAME;
+        }
+
+        if (input.available() > 0) {
+            int wireVersion = input.readInt();
+            if (wireVersion > 0) {
+                this.version = Version.fromId(this.version.id, wireVersion);
+            }
         }
     }
 

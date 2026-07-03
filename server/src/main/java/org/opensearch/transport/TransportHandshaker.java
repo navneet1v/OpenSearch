@@ -238,13 +238,20 @@ public final class TransportHandshaker {
 
         private HandshakeResponse(StreamInput in) throws IOException {
             super(in);
-            responseVersion = in.readVersion();
+            Version baseVersion = in.readVersion();
+            if (in.available() > 0) {
+                int wireVersion = in.readInt();
+                responseVersion = Version.fromId(baseVersion.id, wireVersion);
+            } else {
+                responseVersion = baseVersion;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert responseVersion != null;
             out.writeVersion(responseVersion);
+            out.writeInt(responseVersion.wireVersion);
         }
 
         Version getResponseVersion() {
